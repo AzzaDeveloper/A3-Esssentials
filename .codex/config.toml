@@ -1,0 +1,18 @@
+ [mcp]
+
+ [mcp.servers.context7]
+ type = "http"
+ url = "https://mcp.context7.com/mcp"
+
+ [mcp.servers.context7.headers]
+ CONTEXT7_API_KEY = "YOUR_API_KEY"
+
+ [mcp.servers.shadcn]
+ type = "stdio"
+ command = "npx"
+ args = ["shadcn@latest", "mcp"]
+
+ [mcp.servers.firebase]
+ type = "stdio"
+ command = "npx"
+ args = ["-y", "firebase-tools@latest", "experimental:mcp"]
