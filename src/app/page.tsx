@@ -2,17 +2,20 @@ import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ArrowRight, Sparkles, Users, Brain, Palette, Star, Zap, Heart, Coffee } from "lucide-react"
+import { ProfileMenu } from "@/components/profile-menu"
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-stone-950 text-white overflow-hidden">
-      <header className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-stone-900/80 backdrop-blur-md rounded-full px-6 py-3 border border-stone-700/50">
-        <div className="flex items-center gap-8">
+      <ProfileMenu />
+
+      <header className="fixed top-4 left-1/2 transform -translate-x-1/2 z-20 bg-stone-900/80 backdrop-blur-md rounded-full px-4 md:px-6 py-2 md:py-3 border border-stone-700/50 max-w-[90vw]">
+        <div className="flex items-center gap-4 md:gap-8 justify-between md:justify-start overflow-hidden">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500 rounded-lg flex items-center justify-center">
               <Palette className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-bold">Task-ette</span>
+            <span className="text-lg font-bold whitespace-nowrap truncate max-w-[8rem] sm:max-w-none">Task-ette</span>
           </div>
           <nav className="hidden md:flex items-center gap-6 text-sm">
             <a href="#features" className="text-stone-300 hover:text-white transition-colors">
@@ -22,16 +25,18 @@ export default function HomePage() {
               Demo
             </a>
           </nav>
-          <Button
-            size="sm"
-            className="bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-600 hover:to-violet-600 border-0"
-          >
-            Get Started
-          </Button>
+          <div className="hidden md:flex items-center gap-3">
+            <Button
+              size="sm"
+              className="bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-600 hover:to-violet-600 border-0"
+            >
+              Get Started
+            </Button>
+          </div>
         </div>
       </header>
 
-      <section className="relative pt-32 pb-20 px-4">
+      <section className="relative pt-24 md:pt-32 pb-16 md:pb-20 px-4">
         <div className="absolute inset-0 bg-gradient-to-br from-stone-900 via-stone-950 to-slate-950"></div>
         <div className="absolute inset-0 opacity-30">
           <div className="absolute top-20 left-10 w-32 h-32 bg-stone-800/40 rounded-full blur-3xl"></div>
@@ -47,7 +52,7 @@ export default function HomePage() {
                 AI-Powered Mood Magic
               </Badge>
 
-              <h1 className="text-5xl lg:text-7xl font-bold leading-tight">
+              <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold leading-tight">
                 <span className="bg-gradient-to-r from-pink-400 via-violet-400 to-cyan-400 bg-clip-text text-transparent [&]:text-pink-400">
                   Tasks with
                 </span>
@@ -77,7 +82,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="relative h-96 lg:h-[500px]">
+            <div className="relative h-80 sm:h-96 lg:h-[500px] hidden md:block">
               {/* Energetic Task */}
               <Card className="absolute top-0 right-0 w-64 bg-gradient-to-br from-orange-500/90 to-red-500/90 border-0 text-white transform rotate-3 hover:rotate-6 transition-transform duration-300 shadow-xl shadow-orange-500/25">
                 <CardHeader className="pb-3">
@@ -245,14 +250,16 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="demo" className="relative py-20 px-4">
+      <section id="demo" className="relative py-12 md:py-20 px-4">
         <div className="absolute inset-0 bg-gradient-to-r from-pink-500/5 via-purple-500/5 to-cyan-500/5"></div>
         <div className="container mx-auto relative">
           <div className="text-center mb-16">
             <h2 className="text-4xl lg:text-5xl font-bold mb-6 text-white">
               See the{" "}
-              <span className="bg-gradient-to-r from-pink-400 to-cyan-400 bg-clip-text text-transparent">Magic</span> in
-              Action
+              <span className="bg-gradient-to-r from-pink-400 to-cyan-400 bg-clip-text text-transparent [&]:text-pink-400">
+                Magic
+              </span>{" "}
+              in Action
             </h2>
             <p className="text-xl text-stone-300 max-w-2xl mx-auto">
               Watch how a simple sentence becomes a beautifully organized, color-coded task with smart team assignments.
@@ -333,7 +340,7 @@ export default function HomePage() {
           <h2 className="text-4xl lg:text-6xl font-bold mb-6">
             <span className="text-white">Ready to Add</span>
             <br />
-            <span className="bg-gradient-to-r from-pink-400 via-purple-400 via-cyan-400 to-green-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-pink-400 via-purple-400 via-cyan-400 to-green-400 bg-clip-text text-transparent [&]:text-pink-400">
               Color to Your Workflow?
             </span>
           </h2>
@@ -384,8 +391,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="mt-6 pt-6 border-t border-stone-700/50 text-center text-sm text-stone-400">
-            © 2024 Task-ette. Made with <Heart className="w-4 h-4 inline text-pink-500" /> for creative teams
-            everywhere.
+            © 2025 Task-ette. Made with for creative teams everywhere.
           </div>
         </div>
       </footer>

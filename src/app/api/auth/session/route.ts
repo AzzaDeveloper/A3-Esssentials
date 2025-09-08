@@ -27,6 +27,7 @@ export async function POST(req: Request) {
     });
     return res;
   } catch (e) {
+    console.error("Error in /api/auth/session:", e);
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 }
