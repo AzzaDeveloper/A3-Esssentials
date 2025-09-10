@@ -4,8 +4,10 @@
  type = "http"
  url = "https://mcp.context7.com/mcp"
 
- [mcp.servers.context7.headers]
- CONTEXT7_API_KEY = "YOUR_API_KEY"
+[mcp_servers.context7]
+args = ["-y", "@upstash/context7-mcp"]
+command = "npx"
+startup_timeout_ms = 30000
 
  [mcp.servers.shadcn]
  type = "stdio"

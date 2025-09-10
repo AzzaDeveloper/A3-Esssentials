@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, type ComponentType } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { User, Settings, LogOut, Bell, CreditCard, HelpCircle, Palette, X } from "lucide-react"
+import { User, Users, Settings, LogOut, CreditCard, HelpCircle, Palette, X } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import { clearServerSession } from "@/lib/session"
 import { signOutUser } from "@/lib/auth"
@@ -46,6 +46,14 @@ export function ProfileMenu() {
     router.push("/login")
   }
 
+  const menuItems: { label: string; icon: ComponentType<{ className?: string }>; href?: string }[] = [
+    { label: "Teams", icon: Users, href: "/teams" },
+    { label: "Profile", icon: User, href: "/profile" },
+    { label: "Billing & Plans", icon: CreditCard, href: "/billing" },
+    { label: "Account Settings", icon: Settings, href: "/settings" },
+    { label: "Help & Support", icon: HelpCircle, href: "/help" },
+  ]
+
   return (
     <>
       {/* Profile Icon - positioned absolutely to separate from container */}
@@ -80,11 +88,11 @@ export function ProfileMenu() {
               "fixed inset-0 z-40 transition-opacity duration-200",
               "backdrop-blur-sm bg-black/20",
               isActive ? "opacity-100" : "opacity-0",
+              cn("", "cursor-pointer")
             )}
             onClick={closeMenu}
             role="button"
             aria-label="Close overlay"
-            className={cn("", "cursor-pointer")}
           />
 
           <Card
@@ -115,53 +123,22 @@ export function ProfileMenu() {
 
               {/* Menu Items */}
               <div className="space-y-2">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-stone-300 hover:text-white hover:bg-stone-800/50 h-12 cursor-pointer"
-                >
-                  <User className="w-5 h-5 mr-3" />
-                  Profile Settings
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-stone-300 hover:text-white hover:bg-stone-800/50 h-12 cursor-pointer"
-                >
-                  <Palette className="w-5 h-5 mr-3" />
-                  Mood Preferences
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-stone-300 hover:text-white hover:bg-stone-800/50 h-12 cursor-pointer"
-                >
-                  <Bell className="w-5 h-5 mr-3" />
-                  Notifications
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-stone-300 hover:text-white hover:bg-stone-800/50 h-12 cursor-pointer"
-                >
-                  <CreditCard className="w-5 h-5 mr-3" />
-                  Billing & Plans
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-stone-300 hover:text-white hover:bg-stone-800/50 h-12 cursor-pointer"
-                >
-                  <Settings className="w-5 h-5 mr-3" />
-                  Account Settings
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-stone-300 hover:text-white hover:bg-stone-800/50 h-12 cursor-pointer"
-                >
-                  <HelpCircle className="w-5 h-5 mr-3" />
-                  Help & Support
-                </Button>
+                {menuItems.map(({ label, icon: Icon, href }) => (
+                  <Button
+                    key={label}
+                    variant="ghost"
+                    className="w-full justify-start text-stone-300 hover:text-white hover:bg-stone-800/50 h-12 cursor-pointer"
+                    onClick={() => {
+                      if (href) {
+                        closeMenu()
+                        router.push(href)
+                      }
+                    }}
+                  >
+                    <Icon className="w-5 h-5 mr-3" />
+                    {label}
+                  </Button>
+                ))}
               </div>
 
               {/* Divider */}
