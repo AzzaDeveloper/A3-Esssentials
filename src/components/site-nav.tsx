@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 interface SiteNavProps {
   className?: string;
@@ -18,12 +19,16 @@ export function SiteNav({ className }: SiteNavProps) {
       )}
     >
       <div className="flex items-center gap-4 md:gap-8 justify-between md:justify-start overflow-hidden">
-        <div className="flex items-center gap-2">
+        <Link
+          href="/"
+          aria-label="Task-ette Home"
+          className="flex items-center gap-2 hover:opacity-90 cursor-pointer select-none rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-0"
+        >
           <div className="w-8 h-8 bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500 rounded-lg flex items-center justify-center">
             <Palette className="w-5 h-5 text-white" />
           </div>
           <span className="text-lg font-bold whitespace-nowrap truncate max-w-[8rem] sm:max-w-none text-white">Task-ette</span>
-        </div>
+        </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm">
           <a href="#features" className="text-stone-300 hover:text-white transition-colors">
             Features
