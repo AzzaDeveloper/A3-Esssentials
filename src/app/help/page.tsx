@@ -113,7 +113,7 @@ export default function HelpSupportPage() {
 
           <Card className="bg-stone-800/30 border-stone-700/30">
             <CardContent className="p-6">
-              <Accordion type="single" collapsible className="w-full">
+              <Accordion type="multiple" className="w-full">
                 {filteredFAQs.map((faq) => (
                   <AccordionItem key={faq.id} value={faq.id} className="border-stone-700/50">
                     <AccordionTrigger className="text-left text-white hover:text-blue-400 transition-colors">
