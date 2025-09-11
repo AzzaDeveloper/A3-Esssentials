@@ -1,18 +1,24 @@
 "use client"
 
-import { useState, type ComponentType } from "react"
+import { useEffect, useState, type ComponentType } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { User, Users, Settings, LogOut, CreditCard, HelpCircle, Palette, X } from "lucide-react"
+import { User, Users, Settings, LogOut, CreditCard, HelpCircle, Palette, X, LayoutDashboard } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import { clearServerSession } from "@/lib/session"
 import { signOutUser } from "@/lib/auth"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { NotificationBell } from "@/components/notifications/bell-button"
+import { NotificationsDrawer } from "@/components/notifications/drawer"
+import { useNotifications, useUnreadNotifications } from "@/hooks/use-notifications"
 
 export function ProfileMenu() {
   const [isOpen, setIsOpen] = useState(false)
   const [isActive, setIsActive] = useState(false)
+  const [isNotifOpen, setIsNotifOpen] = useState(false)
+  const [hasUnread, setHasUnread] = useState(false)
   const { user } = useAuth()
   const router = useRouter()
 
@@ -35,6 +41,13 @@ export function ProfileMenu() {
     if (isOpen) closeMenu(); else openMenu();
   }
 
+  function openNotif() { setIsNotifOpen(true) }
+  function closeNotif() { setIsNotifOpen(false) }
+
+  function toggleNotif() {
+    if (isNotifOpen) closeNotif(); else openNotif();
+  }
+
   async function handleSignOut() {
     try {
       await clearServerSession()
@@ -47,17 +60,23 @@ export function ProfileMenu() {
   }
 
   const menuItems: { label: string; icon: ComponentType<{ className?: string }>; href?: string }[] = [
-    { label: "Teams", icon: Users, href: "/teams" },
+    { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
     { label: "Profile", icon: User, href: "/profile" },
     { label: "Billing & Plans", icon: CreditCard, href: "/billing" },
     { label: "Account Settings", icon: Settings, href: "/settings" },
     { label: "Help & Support", icon: HelpCircle, href: "/help" },
   ]
 
+  // Live unread indicator via hook
+  const unread = useUnreadNotifications(user?.uid)
+  const { items: notifs, loading: loadingNotifs } = useNotifications(user?.uid, 10, isNotifOpen)
+  useEffect(() => { setHasUnread(!!unread) }, [unread])
+
   return (
     <>
-      {/* Profile Icon - positioned absolutely to separate from container */}
-      <div className="fixed top-6 right-6 z-30">
+      {/* Floating action buttons (Notifications + Profile) */}
+      <div className="fixed top-6 right-6 z-30 flex items-center gap-3">
+        {user && <NotificationBell hasUnread={hasUnread} onClick={toggleNotif} />}
         <Button
           variant="ghost"
           size="sm"
@@ -176,17 +195,34 @@ export function ProfileMenu() {
 
               {/* Footer */}
               <div className="mt-8 pt-6 border-t border-stone-700/50">
-                <div className="flex items-center gap-2 mb-2">
+                <Link href="/" className="flex items-center gap-2 mb-2 group">
                   <div className="w-6 h-6 bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500 rounded flex items-center justify-center">
                     <Palette className="w-3 h-3 text-white" />
                   </div>
-                  <span className="text-white font-semibold text-sm">Task-ette</span>
-                </div>
+                  <span className="text-white font-semibold text-sm group-hover:underline">Task-ette</span>
+                </Link>
                 <p className="text-stone-400 text-xs">Making work colorful, one task at a time</p>
               </div>
             </div>
           </Card>
         </>
+      )}
+
+      {user && (
+        <NotificationsDrawer
+          open={isNotifOpen}
+          items={notifs as any}
+          loading={loadingNotifs}
+          onClose={closeNotif}
+          onMarkAll={async () => {
+            try { await fetch('/api/users/me/notifications/mark-all-read', { method: 'POST' }) } catch {}
+            setHasUnread(false)
+            closeNotif()
+          }}
+          onMarkRead={async (id: string) => {
+            try { await fetch(`/api/users/me/notifications/${id}`, { method: 'PATCH' }) } catch {}
+          }}
+        />
       )}
     </>
   )

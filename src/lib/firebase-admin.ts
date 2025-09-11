@@ -32,8 +32,6 @@ export function firebaseAdmin() {
         credential: cert(fileCred as any),
         projectId: (fileCred as any).project_id,
       });
-      console.log("Initialized Firebase Admin from file");
-      console.log(fileCred)
     } else {
       const envCred = loadServiceAccountFromEnv();
       if (!envCred) {
