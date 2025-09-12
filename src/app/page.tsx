@@ -3,10 +3,12 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { Badge } from "@/components/ui/badge"
 import { ArrowRight, Sparkles, Users, Brain, Palette, Star, Zap, Heart, Coffee } from "lucide-react"
 import { ProfileMenu } from "@/components/profile-menu"
+import { SiteNav } from "@/components/site-nav"
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-stone-950 text-white overflow-hidden">
+      <SiteNav />
       <ProfileMenu />
 
       <section className="relative pt-24 md:pt-32 pb-16 md:pb-20 px-4">

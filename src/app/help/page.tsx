@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Search, Mail, MessageSquare, Phone } from "lucide-react"
 import { useState } from "react"
+import { SiteNav } from "@/components/site-nav"
 
 export default function HelpSupportPage() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -69,6 +70,7 @@ export default function HelpSupportPage() {
 
   return (
     <div className="min-h-screen bg-stone-950 text-white">
+      <SiteNav />
       {/* Header Section */}
       <section className="relative pt-32 pb-16 px-4">
         <div className="absolute inset-0 bg-gradient-to-br from-stone-900 via-stone-950 to-slate-950"></div>
