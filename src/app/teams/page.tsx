@@ -375,10 +375,6 @@ export default function TeamsPage() {
                             <DropdownMenuItem
                               className="text-destructive"
                               onClick={() => {
-                                if (team.role === 'Owner' && team.memberCount > 1) {
-                                  toast.error('Owner cannot leave while team has members')
-                                  return
-                                }
                                 leaveTeam(team.id)
                               }}
                             >
