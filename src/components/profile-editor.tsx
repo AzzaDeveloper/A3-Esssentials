@@ -71,25 +71,26 @@ export default function ProfileEditor({ profile, suggestedTag }: Props) {
           <Label htmlFor="photo">Photo URL</Label>
           <Input id="photo" value={photoURL || ""} onChange={(e) => setPhotoURL(e.target.value)} />
         </div>
-        <div className="flex items-end gap-3">
-          <div className="flex-1">
-            <Label htmlFor="tag">Public Tag</Label>
-            <Input
-              id="tag"
-              value={tag}
-              onChange={(e) => setTag(e.target.value)}
-              placeholder={suggestedTag || "your-tag"}
-            />
-            <p className="text-xs text-stone-400 mt-1">Your public URL will be /user/&lt;tag&gt;.</p>
+        <div className="grid gap-2">
+          <div className="grid grid-cols-[1fr_auto] items-end gap-3">
+            <div>
+              <Label htmlFor="tag">Public Tag</Label>
+              <Input
+                id="tag"
+                value={tag}
+                onChange={(e) => setTag(e.target.value)}
+                placeholder={suggestedTag || "your-tag"}
+              />
+            </div>
+            <Button
+              type="button"
+              onClick={() => startClaim(claimTag)}
+              disabled={claiming}
+            >
+              {claiming ? "Claiming…" : (profile.tag ? "Update Tag" : "Claim Tag")}
+            </Button>
           </div>
-          <Button
-            type="button"
-            onClick={() => startClaim(claimTag)}
-            disabled={claiming}
-            className="mt-6"
-          >
-            {claiming ? "Claiming…" : (profile.tag ? "Update Tag" : "Claim Tag")}
-          </Button>
+          <p className="text-xs text-stone-400">Your public URL will be /user/&lt;tag&gt;.</p>
         </div>
       </section>
       <div className="flex items-center gap-3">
