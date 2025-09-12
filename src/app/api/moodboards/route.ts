@@ -1,17 +1,39 @@
 import { NextResponse } from "next/server";
-import { listMoodboards, createMoodboard } from "@/lib/moodboards";
+import { listMoodboardsForUser, createMoodboardForUser } from "@/lib/moodboards";
+import { currentUserServer } from "@/lib/auth-server";
+import { getFirestore } from "firebase-admin/firestore";
+import { firebaseAdmin } from "@/lib/firebase-admin";
 
 export async function GET() {
-  const items = await listMoodboards();
+  const me = await currentUserServer();
+  if (!me) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  const items = await listMoodboardsForUser(me.uid);
   return NextResponse.json({ ok: true, items });
 }
 
 export async function POST(req: Request) {
+  const me = await currentUserServer();
+  if (!me) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   const body = await req.json().catch(() => ({}));
-  // Minimal validation
-  const created = await createMoodboard({
+  const type = body?.type === "team" ? "team" : "personal";
+
+  // If team board, verify membership before creation
+  if (type === "team") {
+    const teamId = String(body?.teamId || "").trim();
+    if (!teamId) return NextResponse.json({ ok: false, error: "team_required" }, { status: 400 });
+    try {
+      firebaseAdmin();
+      const db = getFirestore();
+      const teamDoc = await db.collection("teams").doc(teamId).get();
+      if (!teamDoc.exists) return NextResponse.json({ ok: false, error: "team_not_found" }, { status: 404 });
+      const members: string[] = teamDoc.data()?.members ?? [];
+      if (!members.includes(me.uid)) return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+    } catch {}
+  }
+
+  const created = await createMoodboardForUser(me.uid, {
     name: body?.name,
-    type: body?.type === "team" ? "team" : "personal",
+    type,
     ownerName: body?.ownerName,
     teamId: body?.teamId,
     teamName: body?.teamName,

@@ -177,8 +177,20 @@ export function BoardCanvas({ boardId }: BoardCanvasProps) {
     transformOrigin: "0 0",
   }), [offset.x, offset.y, scale]);
 
+  const gridStyle = useMemo<React.CSSProperties>(() => {
+    const cell = 40; // px
+    // Offset the two gradient layers separately: x for vertical lines, y for horizontal lines
+    return {
+      backgroundImage:
+        "linear-gradient(to right, rgba(0,0,0,0.08) 1px, transparent 1px)," +
+        "linear-gradient(to bottom, rgba(0,0,0,0.08) 1px, transparent 1px)",
+      backgroundSize: `${cell}px ${cell}px, ${cell}px ${cell}px`,
+      backgroundPosition: `${offset.x}px 0px, 0px ${offset.y}px`,
+    } as React.CSSProperties;
+  }, [offset.x, offset.y]);
+
   return (
-    <div className="relative h-[calc(100vh-12rem)] md:h-[calc(100vh-10rem)] rounded-lg border border-stone-800 bg-stone-950 overflow-hidden select-none">
+    <div className="relative w-screen h-screen bg-gray-500 overflow-hidden select-none">
       {/* Toolbar */}
       <div className="absolute left-3 top-3 z-20 flex items-center gap-2">
         <button
@@ -200,8 +212,8 @@ export function BoardCanvas({ boardId }: BoardCanvasProps) {
         onPointerMove={onBackgroundPointerMove}
         onPointerUp={onBackgroundPointerUp}
       >
-        {/* Grid */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:40px_40px]" />
+        {/* Grid that pans with camera */}
+        <div className="absolute inset-0" style={gridStyle} />
 
         <div className="absolute left-0 top-0 will-change-transform" style={transformStyle}>
           {/* Content area */}

@@ -2,12 +2,14 @@ import { Moodboard } from "@/lib/types";
 import { CreateMoodboardDialog } from "@/components/moodboard/create-moodboard-dialog";
 import { Separator } from "@/components/ui/separator";
 import Link from "next/link";
-import { listMoodboards } from "@/lib/moodboards";
+import { listMoodboardsForUser } from "@/lib/moodboards";
+import { currentUserServer } from "@/lib/auth-server";
 import { MoodboardsView } from "@/components/moodboard/moodboards-view";
 
 
 export default async function MoodboardsPage() {
-  const boards: Moodboard[] = await listMoodboards();
+  const me = await currentUserServer();
+  const boards: Moodboard[] = me ? await listMoodboardsForUser(me.uid) : [];
   return (
     <div className="px-4 md:px-8 lg:px-12 py-8 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">

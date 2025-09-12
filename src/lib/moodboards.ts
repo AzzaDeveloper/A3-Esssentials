@@ -85,6 +85,7 @@ export async function listMoodboards(): Promise<Moodboard[]> {
       .orderBy("updatedAt", "desc")
       .limit(50)
       .get();
+    console.log(qs)
     return qs.docs.map((d) => {
       const data = d.data() as any;
       return {
@@ -103,6 +104,7 @@ export async function listMoodboards(): Promise<Moodboard[]> {
       } satisfies Moodboard;
     });
   } catch (e) {
+    console.log(e)
     // Fallback to static samples if admin not configured
     return sampleBoards();
   }
@@ -138,6 +140,77 @@ export async function getMoodboardById(id: string): Promise<Moodboard | null> {
   }
 }
 
+export async function listMoodboardsForUser(uid: string): Promise<Moodboard[]> {
+  try {
+    const { app } = firebaseAdmin();
+    const db = getFirestore(app);
+
+    // Fetch personal boards where user is a participant
+    const personalSnap = await db
+      .collection(COLLECTION)
+      .where("type", "==", "personal")
+      .where("participantIds", "array-contains", uid)
+      .orderBy("updatedAt", "desc")
+      .limit(50)
+      .get();
+
+    // Determine teams the user belongs to
+    const teamSnap = await db
+      .collection("teams")
+      .where("members", "array-contains", uid)
+      .get();
+    const teamIds = teamSnap.docs.map((d) => d.id);
+
+    // Fetch team boards across user's teams (Firestor e doesn't support IN>10 well; handle chunking)
+    const chunked: string[][] = [];
+    for (let i = 0; i < teamIds.length; i += 10) chunked.push(teamIds.slice(i, i + 10));
+    const teamBoardsArrays = await Promise.all(
+      chunked.map((ids) =>
+        ids.length
+          ? db
+              .collection(COLLECTION)
+              .where("type", "==", "team")
+              .where("teamId", "in", ids)
+              .orderBy("updatedAt", "desc")
+              .limit(50)
+              .get()
+          : Promise.resolve({ docs: [] } as any)
+      )
+    );
+
+    const docs = [
+      ...personalSnap.docs,
+      ...teamBoardsArrays.flatMap((s: any) => s.docs ?? []),
+    ];
+
+    const mapped = docs.map((d) => {
+      const data = d.data() as any;
+      return {
+        id: d.id,
+        name: data.name,
+        type: data.type,
+        ownerName: data.ownerName,
+        teamId: data.teamId ?? undefined,
+        teamName: data.teamName ?? undefined,
+        tags: data.tags ?? [],
+        updatedAt: toIso(data.updatedAt) || new Date().toISOString(),
+        coverUrl: data.coverUrl ?? null,
+        facets: data.facets ?? {},
+        participants: data.participants ?? [],
+        previewUrls: data.previewUrls ?? [],
+      } satisfies Moodboard;
+    });
+
+    // sort again and limit to 50
+    mapped.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    return mapped.slice(0, 50);
+  } catch (e) {
+    console.log(e)
+    // Fallback to static samples
+    return sampleBoards();
+  }
+}
+
 export async function createMoodboard(input: Partial<Moodboard>): Promise<Moodboard> {
   const now = Timestamp.now();
   const base = {
@@ -153,6 +226,96 @@ export async function createMoodboard(input: Partial<Moodboard>): Promise<Moodbo
     participants: input.participants ?? [],
     previewUrls: input.previewUrls ?? [],
   };
+
+  try {
+    const { app, adminRtdb } = firebaseAdmin();
+    const db = getFirestore(app);
+    const ref = await db.collection(COLLECTION).add(base);
+    // Mirror ACL metadata into RTDB for client-side rules if desired
+    try {
+      if (adminRtdb) {
+        const { getDatabase } = await import("firebase-admin/database");
+        const db2 = adminRtdb || getDatabase(app);
+        const participantIds = Array.from(new Set((base.participants ?? []).map((p: any) => String(p.id))));
+        await db2.ref(`moodboards/${ref.id}/meta`).set({
+          participantIds,
+          teamId: base.teamId || null,
+          type: base.type,
+        });
+      }
+    } catch {}
+    return {
+      id: ref.id,
+      name: base.name,
+      type: base.type,
+      ownerName: base.ownerName,
+      teamId: base.teamId ?? undefined,
+      teamName: base.teamName ?? undefined,
+      tags: base.tags,
+      updatedAt: new Date().toISOString(),
+      coverUrl: base.coverUrl,
+      facets: base.facets,
+      participants: base.participants,
+      previewUrls: base.previewUrls,
+    } as unknown as Moodboard;
+  } catch (e) {
+    // In fallback mode, just return a fake id (not persisted)
+    return {
+      id: `local_${Math.random().toString(36).slice(2, 8)}`,
+      name: base.name,
+      type: base.type,
+      ownerName: base.ownerName,
+      teamId: base.teamId ?? undefined,
+      teamName: base.teamName ?? undefined,
+      tags: base.tags,
+      updatedAt: new Date().toISOString(),
+      coverUrl: base.coverUrl,
+      facets: base.facets,
+      participants: base.participants,
+      previewUrls: base.previewUrls,
+    } as Moodboard;
+  }
+}
+
+import { getUserProfile } from "@/lib/user";
+
+export async function createMoodboardForUser(uid: string, input: Partial<Moodboard>): Promise<Moodboard> {
+  const now = Timestamp.now();
+  // Resolve owner profile for display fields
+  let ownerDisplay = input.ownerName ?? "";
+  let ownerAvatar: string | null = null;
+  try {
+    const profile = await getUserProfile(uid);
+    if (profile) {
+      ownerDisplay = ownerDisplay || profile.displayName || profile.email || "You";
+      ownerAvatar = profile.photoURL ?? null;
+    }
+  } catch {}
+
+  const base: any = {
+    name: input.name ?? "Untitled Board",
+    type: input.type === "team" ? "team" : "personal",
+    ownerId: uid,
+    ownerName: ownerDisplay,
+    teamId: input.teamId ?? null,
+    teamName: input.teamName ?? null,
+    tags: input.tags ?? [],
+    updatedAt: now,
+    coverUrl: input.coverUrl ?? null,
+    facets: input.facets ?? {},
+    participants: input.participants ?? [],
+    previewUrls: input.previewUrls ?? [],
+  };
+
+  // Ensure creator is a participant and in participantIds
+  if (!Array.isArray(base.participants)) base.participants = [];
+  const hasCreator = base.participants.some((p: any) => p?.id === uid);
+  if (!hasCreator) base.participants.unshift({ id: uid, name: base.ownerName || "You", avatarUrl: ownerAvatar });
+  const incomingIds: string[] = Array.isArray((input as any)?.participantIds)
+    ? ((input as any).participantIds as string[])
+    : [];
+  const ids = new Set<string>([uid, ...incomingIds, ...(base.participants?.map((p: any) => String(p.id)) ?? [])]);
+  base.participantIds = Array.from(ids);
 
   try {
     const { app } = firebaseAdmin();
@@ -171,9 +334,8 @@ export async function createMoodboard(input: Partial<Moodboard>): Promise<Moodbo
       facets: base.facets,
       participants: base.participants,
       previewUrls: base.previewUrls,
-    } as unknown as Moodboard;
+    } as Moodboard;
   } catch (e) {
-    // In fallback mode, just return a fake id (not persisted)
     return {
       id: `local_${Math.random().toString(36).slice(2, 8)}`,
       name: base.name,
