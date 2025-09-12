@@ -1,13 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { currentUserServer } from "@/lib/auth-server";
 import { createNotification } from "@/lib/notifications";
 import { getUserProfile } from "@/lib/user";
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const me = await currentUserServer();
   if (!me) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
-  const targetUid = params.id;
+  const { id: targetId } = await ctx.params;
+  const targetUid = targetId;
   if (!targetUid) return NextResponse.json({ ok: false, error: "missing_user" }, { status: 400 });
 
   // Allow users to notify themselves; others require admin role
