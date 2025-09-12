@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUserServer } from "@/lib/auth-server";
-import { getUserProfile, upsertUserProfile, suggestTagFrom } from "@/lib/user";
+import { getUserProfile, upsertUserProfile } from "@/lib/user";
+import { suggestTagFrom } from "@/lib/tag";
 import type { UserProfile } from "@/lib/types";
 
 export async function GET() {

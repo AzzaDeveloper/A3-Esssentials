@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -24,12 +26,16 @@ import { ProfileMenu } from "@/components/profile-menu"
 import type { Team, TeamInvitation } from "@/lib/types"
 import { toast } from "sonner"
 import { useAuth } from "@/hooks/useAuth"
+import { firebase } from "@/lib/firebase"
+import { isValidTag } from "@/lib/tag"
+import { doc, getDoc } from "firebase/firestore"
 
 // Client state
 type TeamUI = Team & { role?: "Owner" | "Member"; isStarred?: boolean }
 
 export default function TeamsPage() {
   const { user } = useAuth()
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [teams, setTeams] = useState<TeamUI[]>([])
   const [loading, setLoading] = useState(true)
@@ -37,6 +43,12 @@ export default function TeamsPage() {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [invites, setInvites] = useState<TeamInvitation[]>([])
+  const [teamMeta, setTeamMeta] = useState<Record<string, { name: string; memberCount: number }>>({})
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [inviteTeamId, setInviteTeamId] = useState<string | null>(null)
+  const [inviteeId, setInviteeId] = useState("")
+  const [inviting, setInviting] = useState(false)
+  const [memberPreviews, setMemberPreviews] = useState<Record<string, { id: string; displayName: string; photoURL: string | null; tag?: string | null }[]>>({})
   const canCreate = name.trim().length > 0 && !creating
 
   async function handleCreate() {
@@ -86,6 +98,116 @@ export default function TeamsPage() {
   }
 
   useEffect(() => { load() }, [])
+
+  // Fetch up to 5 member profiles per team for avatars
+  useEffect(() => {
+    const run = async () => {
+      if (!teams.length) return
+      const { db } = firebase()
+      const updates: Record<string, { id: string; displayName: string; photoURL: string | null; tag?: string | null }[]> = {}
+      await Promise.all(teams.map(async (t) => {
+        if (memberPreviews[t.id]) return
+        const ids = (t.members || []).slice(0, 5)
+        if (ids.length === 0) { updates[t.id] = []; return }
+        const rows: { id: string; displayName: string; photoURL: string | null; tag?: string | null }[] = []
+        await Promise.all(ids.map(async (uid) => {
+          try {
+            const snap = await getDoc(doc(db, "users", uid))
+            const d: any = snap.exists() ? snap.data() : {}
+            rows.push({
+              id: uid,
+              displayName: String(d.displayName || d.email?.split("@")[0] || "User"),
+              photoURL: (d.photoURL as string | null) ?? null,
+              tag: (d.tag as string | null) ?? null,
+            })
+          } catch {}
+        }))
+        updates[t.id] = rows
+      }))
+      if (Object.keys(updates).length) setMemberPreviews((prev) => ({ ...prev, ...updates }))
+    }
+    run()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teams])
+
+  // Load team metadata for invitations (names, counts)
+  useEffect(() => {
+    const toFetch = Array.from(new Set(invites.map(i => i.teamId))).filter(id => !teamMeta[id])
+    if (toFetch.length === 0) return
+    ;(async () => {
+      const entries: [string, { name: string; memberCount: number }][] = []
+      await Promise.all(toFetch.map(async (id) => {
+        try {
+          const res = await fetch(`/api/teams/${id}`, { cache: "no-store" })
+          const data = await res.json().catch(() => ({}))
+          if (res.ok && data?.ok && data.team) {
+            entries.push([id, { name: data.team.name as string, memberCount: data.team.memberCount as number }])
+          }
+        } catch {}
+      }))
+      if (entries.length) setTeamMeta(prev => ({ ...prev, ...Object.fromEntries(entries) }))
+    })()
+  }, [invites])
+
+  async function handleInvite() {
+    if (!inviteTeamId || !inviteeId.trim()) { toast.error("Provide a user tag or UID"); return }
+    setInviting(true)
+    try {
+      const raw = inviteeId.trim()
+      const looksLikeTag = raw.startsWith('@') || isValidTag(raw)
+      const payload = looksLikeTag ? { teamId: inviteTeamId, inviteeTag: raw.replace(/^@/, '') } : { teamId: inviteTeamId, inviteeId: raw }
+      const res = await fetch('/api/teams/invitations', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
+      const data = await res.json().catch(()=>({}))
+      if (!res.ok || !data?.ok) {
+        const err = data?.error || 'failed'
+        if (err === 'already_member') toast.error('User is already a member')
+        else if (err === 'forbidden') toast.error('Only members can invite')
+        else if (err === 'invalid_tag') toast.error('Invalid user tag')
+        else if (err === 'tag_not_found') toast.error('No user found with that tag')
+        else toast.error('Failed to send invite')
+        return
+      }
+      toast.success('Invitation sent')
+      setInviteOpen(false)
+      setInviteeId("")
+    } finally {
+      setInviting(false)
+    }
+  }
+
+  async function acceptInvite(id: string) {
+    const res = await fetch(`/api/teams/invitations/${id}`, { method: 'PATCH', headers: { 'content-type':'application/json' }, body: JSON.stringify({ action: 'accept' }) })
+    const data = await res.json().catch(()=>({}))
+    if (!res.ok || !data?.ok) {
+      const err = data?.error
+      if (err === 'limit_reached') toast.error('Your plan limit for teams is reached')
+      else toast.error('Failed to accept invitation')
+      return
+    }
+    toast.success('Joined team')
+    await load()
+  }
+
+  async function declineInvite(id: string) {
+    const res = await fetch(`/api/teams/invitations/${id}`, { method: 'PATCH', headers: { 'content-type':'application/json' }, body: JSON.stringify({ action: 'decline' }) })
+    const data = await res.json().catch(()=>({}))
+    if (!res.ok || !data?.ok) { toast.error('Failed to decline'); return }
+    toast.success('Invitation declined')
+    setInvites(prev => prev.filter(i => i.id !== id))
+  }
+
+  async function leaveTeam(teamId: string) {
+    const res = await fetch(`/api/teams/${teamId}/leave`, { method: 'POST' })
+    const data = await res.json().catch(()=>({}))
+    if (!res.ok || !data?.ok) {
+      const err = data?.error
+      if (err === 'owner_cannot_leave_with_members') toast.error('Transfer ownership or remove members first')
+      else toast.error('Failed to leave team')
+      return
+    }
+    toast.success('Left team')
+    await load()
+  }
 
   // Recompute roles when auth state or teams change
   useEffect(() => {
@@ -237,20 +359,29 @@ export default function TeamsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => { setInviteTeamId(team.id); setInviteOpen(true); }}>
+                              <UserPlus className="mr-2 h-4 w-4" />
+                              Invite Member
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.push(`/teams/${team.id}`)}>
                               <Edit className="mr-2 h-4 w-4" />
-                              Edit Team
+                              View Team
                             </DropdownMenuItem>
                             <DropdownMenuItem>
                               <Settings className="mr-2 h-4 w-4" />
                               Settings
                             </DropdownMenuItem>
                             <Separator />
-                            <DropdownMenuItem className="text-destructive">
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => {
+                                leaveTeam(team.id)
+                              }}
+                            >
                               {team.role === "Owner" ? (
                                 <>
                                   <Trash2 className="mr-2 h-4 w-4" />
-                                  Delete Team
+                                  {team.memberCount > 1 ? 'Cannot Leave (Owner)' : 'Delete Team'}
                                 </>
                               ) : (
                                 <>
@@ -269,17 +400,20 @@ export default function TeamsPage() {
                     {/* Team Members Preview */}
                     <div className="flex items-center justify-between">
                       <div className="flex -space-x-2">
-                        {Array.from({ length: Math.min(3, team.memberCount) }).map((_, index) => (
-                          <span key={index} className={team.isStarred ? "p-0.5 rounded-full bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500" : ""}>
+                        {(memberPreviews[team.id] || []).slice(0, 5).map((m) => (
+                          <Link key={m.id} href={`/user/${m.tag || m.id}`} title={m.displayName} className={team.isStarred ? "p-0.5 rounded-full bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500" : ""}>
                             <Avatar className="h-8 w-8 border-2 border-background">
-                              <AvatarImage src={"/placeholder.svg"} alt="member" />
-                              <AvatarFallback className="text-xs">{index + 1}</AvatarFallback>
+                              <AvatarImage src={m.photoURL ?? undefined} alt={m.displayName} />
+                              <AvatarFallback className="text-xs">{m.displayName.slice(0,1).toUpperCase()}</AvatarFallback>
                             </Avatar>
-                          </span>
+                          </Link>
                         ))}
-                        {team.memberCount > 3 && (
+                        {!memberPreviews[team.id] && Array.from({ length: Math.min(3, team.memberCount) }).map((_, index) => (
+                          <span key={index} className="h-8 w-8 rounded-full bg-stone-800 border-2 border-background" />
+                        ))}
+                        {team.memberCount > 5 && (
                           <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-medium text-muted-foreground">
-                            +{team.memberCount - 3}
+                            +{team.memberCount - 5}
                           </div>
                         )}
                       </div>
@@ -287,9 +421,14 @@ export default function TeamsPage() {
                     </div>
 
                     {/* Action Buttons */}
-                    <Button className="w-full" size="sm">
-                      View Team
-                    </Button>
+                    <div className="flex gap-2 min-w-0">
+                      <Button className="flex-1" size="sm" onClick={() => router.push(`/teams/${team.id}`)}>
+                        View Team
+                      </Button>
+                      <Button className="flex-1" variant="secondary" size="sm" onClick={() => { setInviteTeamId(team.id); setInviteOpen(true); }}>
+                        <UserPlus className="h-4 w-4 mr-1" /> Invite
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -359,8 +498,49 @@ export default function TeamsPage() {
                 <p className="text-muted-foreground">When someone invites you, it will show up here.</p>
               </div>
             )}
+
+            {invites.length > 0 && (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {invites.map((inv) => (
+                  <Card key={inv.id} className="bg-stone-900/60 border-stone-700/50">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg">{teamMeta[inv.teamId]?.name || 'Team Invitation'}</CardTitle>
+                      <CardDescription>Invited to join team {teamMeta[inv.teamId]?.name ? '' : inv.teamId}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex items-center justify-between gap-2">
+                      <span className="text-sm text-muted-foreground">{teamMeta[inv.teamId]?.memberCount ?? '—'} members</span>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="secondary" onClick={() => declineInvite(inv.id)}>Decline</Button>
+                        <Button size="sm" onClick={() => acceptInvite(inv.id)}>Accept</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
+
+        {/* Invite Member Dialog */}
+        <Dialog open={inviteOpen} onOpenChange={(v)=>{ setInviteOpen(v); if(!v){ setInviteeId(""); setInviteTeamId(null) } }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Invite Member</DialogTitle>
+              <DialogDescription>Enter a user tag (e.g., @alice) or UID to invite to this team.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <Input placeholder="User tag (@alice) or UID" value={inviteeId} onChange={(e)=>setInviteeId(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <DialogClose asChild>
+                <Button variant="outline">Cancel</Button>
+              </DialogClose>
+              <Button onClick={handleInvite} disabled={inviting || !inviteeId.trim()}>
+                {inviting ? 'Sending…' : 'Send Invite'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )
