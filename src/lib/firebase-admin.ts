@@ -56,10 +56,10 @@ export function firebaseAdmin() {
   adminAuth ||= getAuth(app);
   adminDb ||= getFirestore(app);
   // Realtime Database admin (optional)
-  const dbUrl = process.env.NEXT_PUBLIC_FB_DB_URL || process.env.FIREBASE_DATABASE_URL;
+  // const dbUrl = process.env.NEXT_PUBLIC_FB_DB_URL || process.env.FIREBASE_DATABASE_URL;
   if (!adminRtdb) {
     try {
-      adminRtdb = dbUrl ? getDatabase(app, dbUrl) : getDatabase(app);
+      adminRtdb = getDatabase(app);
     } catch {}
   }
   return { app, adminAuth, adminDb, adminRtdb };
