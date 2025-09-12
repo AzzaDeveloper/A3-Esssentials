@@ -62,6 +62,7 @@ export function ProfileMenu() {
   const menuItems: { label: string; icon: ComponentType<{ className?: string }>; href?: string }[] = [
     { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
     { label: "Profile", icon: User, href: "/profile" },
+    { label: "Teams", icon: Users, href: "/teams" },
     { label: "Billing & Plans", icon: CreditCard, href: "/billing" },
     { label: "Account Settings", icon: Settings, href: "/settings" },
     { label: "Help & Support", icon: HelpCircle, href: "/help" },
