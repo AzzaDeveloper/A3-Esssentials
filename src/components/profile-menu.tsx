@@ -162,7 +162,7 @@ export function ProfileMenu() {
               </div>
 
               {/* Divider */}
-              <div className="my-6 border-t border-stone-700/50" />
+              <div className="my-6 h-px bg-gradient-to-r from-transparent via-stone-700/50 to-transparent" />
 
               {/* Auth action */}
               {user ? (
@@ -195,7 +195,8 @@ export function ProfileMenu() {
               )}
 
               {/* Footer */}
-              <div className="mt-8 pt-6 border-t border-stone-700/50">
+              <div className="mt-8 pt-6">
+                <div className="mb-4 h-px bg-gradient-to-r from-transparent via-stone-700/50 to-transparent" />
                 <Link href="/" className="flex items-center gap-2 mb-2 group">
                   <div className="w-6 h-6 bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500 rounded flex items-center justify-center">
                     <Palette className="w-3 h-3 text-white" />

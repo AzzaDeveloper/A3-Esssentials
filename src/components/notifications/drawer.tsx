@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import { Bell, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -40,6 +42,35 @@ export function NotificationsDrawer({
   }, [open]);
 
   if (!mounted) return null;
+
+  function levelBar(level?: string) {
+    const cls =
+      level === "success"
+        ? "from-emerald-500 to-green-500"
+        : level === "warning"
+          ? "from-amber-500 to-orange-500"
+          : level === "error"
+            ? "from-rose-500 to-red-500"
+            : "from-sky-500 to-cyan-500";
+    return <span className={cn("absolute left-0 top-0 h-full w-1.5 rounded-l-sm bg-gradient-to-b", cls)} />
+  }
+
+  function levelBadge(level?: string) {
+    if (!level) return null;
+    const cls =
+      level === "success"
+        ? "bg-emerald-600/25 text-emerald-200 border-emerald-700/60"
+        : level === "warning"
+          ? "bg-amber-600/25 text-amber-200 border-amber-700/60"
+          : level === "error"
+            ? "bg-red-600/25 text-red-200 border-red-700/60"
+            : "bg-stone-700/40 text-stone-200 border-stone-600/60";
+    return (
+      <Badge variant="outline" className={cn("text-[10px] capitalize", cls)}>
+        {level}
+      </Badge>
+    );
+  }
 
   return (
     <>
@@ -98,7 +129,8 @@ export function NotificationsDrawer({
             </div>
           </div>
 
-          <div className="space-y-2 overflow-y-auto pr-1" style={{ maxHeight: '50vh' }}>
+          <ScrollArea className="pr-1" style={{ maxHeight: '50vh' }}>
+            <div className="space-y-2">
             {loading && (
               <p className="text-stone-400 text-sm">Loading…</p>
             )}
@@ -106,10 +138,17 @@ export function NotificationsDrawer({
               <p className="text-stone-400 text-sm">You're all caught up.</p>
             )}
             {items.map((n) => (
-              <div key={n.id} className="p-3 rounded-md bg-stone-800/50 border border-stone-700/50">
-                <div className="flex items-start justify-between">
+              <div key={n.id} className="p-3 rounded-md bg-stone-800/50 border border-stone-700/50 overflow-hidden">
+                <div className="relative flex items-start justify-between pl-3">
+                  {levelBar(n.level)}
                   <div>
-                    <p className="text-white text-sm font-medium">{n.title}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-white text-sm font-medium">{n.title}</p>
+                      {levelBadge(n.level)}
+                      {!n.readAt && (
+                        <Badge className="text-[10px] bg-gradient-to-r from-pink-500 to-violet-500 text-white border-0">New</Badge>
+                      )}
+                    </div>
                     {n.body && <p className="text-stone-400 text-xs mt-1">{n.body}</p>}
                     <p className="text-stone-500 text-[10px] mt-1">{new Date(n.createdAt).toLocaleString()}</p>
                   </div>
@@ -126,7 +165,8 @@ export function NotificationsDrawer({
                 </div>
               </div>
             ))}
-          </div>
+            </div>
+          </ScrollArea>
 
           <div className="mt-4 flex justify-center">
             <Button

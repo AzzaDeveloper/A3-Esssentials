@@ -48,3 +48,27 @@ export interface UserProfile {
 }
 
 export const USER_SCHEMA_VERSION = 1 as const;
+
+// Teams
+export interface Team {
+  id: string;
+  name: string;
+  description?: string;
+  ownerId: string;
+  members: string[];
+  memberCount: number;
+  isPublic?: boolean;
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+}
+
+export type TeamInviteStatus = "pending" | "accepted" | "declined" | "expired";
+
+export interface TeamInvitation {
+  id: string;
+  teamId: string;
+  inviteeId: string;
+  inviterId: string;
+  status: TeamInviteStatus;
+  createdAt: string; // ISO
+}
