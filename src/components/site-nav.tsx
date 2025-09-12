@@ -35,16 +35,17 @@ export function SiteNav({ className }: SiteNavProps) {
           <a href="#features" className="text-stone-300 hover:text-white transition-colors">
             Features
           </a>
-          <a href="#demo" className="text-stone-300 hover:text-white transition-colors">
-            Demo
-          </a>
+          <Link href="/help" className="text-stone-300 hover:text-white transition-colors">
+            Help & Support
+          </Link>
         </nav>
         <div className="hidden md:flex items-center gap-3">
           <Button
+            asChild
             size="sm"
             className="bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-600 hover:to-violet-600 border-0"
           >
-            Get Started
+            <Link href="/login">Get Started</Link>
           </Button>
         </div>
       </div>
