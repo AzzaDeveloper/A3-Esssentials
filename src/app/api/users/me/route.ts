@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUserServer } from "@/lib/auth-server";
-import { getUserProfile, upsertUserProfile } from "@/lib/user";
+import { getUserProfile, upsertUserProfile, suggestTagFrom } from "@/lib/user";
 import type { UserProfile } from "@/lib/types";
 
 export async function GET() {
@@ -8,7 +8,9 @@ export async function GET() {
   if (!user) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
   const profile = await getUserProfile(user.uid);
-  return NextResponse.json({ ok: true, profile });
+  // Provide a suggestion for users missing a tag (no mutation here)
+  const suggestedTag = !profile?.tag ? suggestTagFrom(profile?.displayName, profile?.email) : undefined;
+  return NextResponse.json({ ok: true, profile, suggestedTag });
 }
 
 export async function PATCH(req: Request) {

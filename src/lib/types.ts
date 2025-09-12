@@ -29,6 +29,8 @@ export interface UserProfile {
   photoURL?: string | null;
 
   // Public profile
+  // Unique user tag/handle for public profile URLs (e.g., /user/<tag>)
+  tag?: string | null;
   bio?: string;
 
   // Preferences
