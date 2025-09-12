@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { firebaseAdmin } from "@/lib/firebase-admin";
+import { getUserProfile } from "@/lib/user";
 
 export async function POST(req: Request) {
   try {
@@ -15,6 +16,17 @@ export async function POST(req: Request) {
       (remember ? 7 : 1) * 24 * 60 * 60 * 1000,
     );
     const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
+
+    // Ensure a user profile exists for this UID on login
+    try {
+      const decoded = await adminAuth.verifyIdToken(idToken, true).catch(() => null);
+      if (decoded?.uid) {
+        await getUserProfile(decoded.uid);
+      }
+    } catch (e) {
+      // Non-fatal: profile bootstrap should not block session creation
+      console.warn("Profile bootstrap failed", e);
+    }
 
     const res = NextResponse.json({ ok: true });
     const isProd = process.env.NODE_ENV === "production";
