@@ -3,7 +3,7 @@ import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { firebaseAdmin } from "@/lib/firebase-admin";
 import { currentUserServer } from "@/lib/auth-server";
 import { createNotification } from "@/lib/notifications";
-import { getUserProfile } from "@/lib/user";
+import { getUserProfile, normalizeTag, isValidTag } from "@/lib/user";
 
 export async function GET() {
   firebaseAdmin();
@@ -45,7 +45,19 @@ export async function POST(req: Request) {
   let body: any;
   try { body = await req.json(); } catch { return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 }); }
   const teamId = String(body?.teamId || "").trim();
-  const inviteeId = String(body?.inviteeId || "").trim();
+  let inviteeId = String(body?.inviteeId || "").trim();
+  const rawTag: string = String(body?.inviteeTag || "").trim();
+
+  // Allow inviting by tag as well as UID
+  if (!inviteeId && rawTag) {
+    const cleaned = normalizeTag(rawTag.startsWith("@") ? rawTag.slice(1) : rawTag);
+    if (!isValidTag(cleaned)) return NextResponse.json({ ok: false, error: "invalid_tag" }, { status: 400 });
+    const tagDoc = await getFirestore().collection("user_tags").doc(cleaned).get();
+    if (!tagDoc.exists) return NextResponse.json({ ok: false, error: "tag_not_found" }, { status: 404 });
+    const mappedUid = String(tagDoc.data()?.uid || "");
+    inviteeId = mappedUid;
+  }
+
   if (!teamId || !inviteeId) return NextResponse.json({ ok: false, error: "missing_fields" }, { status: 400 });
   if (inviteeId === me.uid) return NextResponse.json({ ok: false, error: "cannot_invite_self" }, { status: 400 });
 

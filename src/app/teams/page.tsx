@@ -114,15 +114,20 @@ export default function TeamsPage() {
   }, [invites])
 
   async function handleInvite() {
-    if (!inviteTeamId || !inviteeId.trim()) { toast.error("Provide a user ID"); return }
+    if (!inviteTeamId || !inviteeId.trim()) { toast.error("Provide a user tag or UID"); return }
     setInviting(true)
     try {
-      const res = await fetch('/api/teams/invitations', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ teamId: inviteTeamId, inviteeId: inviteeId.trim() }) })
+      const raw = inviteeId.trim()
+      const looksLikeTag = raw.startsWith('@') || /^[a-z0-9._-]{3,30}$/i.test(raw)
+      const payload = looksLikeTag ? { teamId: inviteTeamId, inviteeTag: raw.replace(/^@/, '') } : { teamId: inviteTeamId, inviteeId: raw }
+      const res = await fetch('/api/teams/invitations', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
       const data = await res.json().catch(()=>({}))
       if (!res.ok || !data?.ok) {
         const err = data?.error || 'failed'
         if (err === 'already_member') toast.error('User is already a member')
         else if (err === 'forbidden') toast.error('Only members can invite')
+        else if (err === 'invalid_tag') toast.error('Invalid user tag')
+        else if (err === 'tag_not_found') toast.error('No user found with that tag')
         else toast.error('Failed to send invite')
         return
       }
@@ -486,10 +491,10 @@ export default function TeamsPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Invite Member</DialogTitle>
-              <DialogDescription>Enter a user ID to invite to this team.</DialogDescription>
+              <DialogDescription>Enter a user tag (e.g., @alice) or UID to invite to this team.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
-              <Input placeholder="User ID (UID)" value={inviteeId} onChange={(e)=>setInviteeId(e.target.value)} />
+              <Input placeholder="User tag (@alice) or UID" value={inviteeId} onChange={(e)=>setInviteeId(e.target.value)} />
             </div>
             <div className="flex justify-end gap-2">
               <DialogClose asChild>
