@@ -32,6 +32,9 @@ export function SiteNav({ className }: SiteNavProps) {
           <span className="text-lg font-bold whitespace-nowrap truncate max-w-[8rem] sm:max-w-none text-white">Task-ette</span>
         </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm">
+          <Link href="/moodboards" className="text-stone-300 hover:text-white transition-colors">
+            Moodboards
+          </Link>
           <a href="#features" className="text-stone-300 hover:text-white transition-colors">
             Features
           </a>

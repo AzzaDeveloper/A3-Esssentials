@@ -79,7 +79,7 @@ export function ProfileMenu() {
   }
 
   const menuItems: { label: string; icon: ComponentType<{ className?: string }>; href?: string }[] = [
-    { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
+    { label: "Moodboards", icon: LayoutDashboard, href: "/moodboards" },
     { label: "Profile", icon: User, href: profileHref },
     { label: "Teams", icon: Users, href: "/teams" },
     { label: "Billing & Plans", icon: CreditCard, href: "/billing" },

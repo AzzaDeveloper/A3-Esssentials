@@ -74,3 +74,25 @@ export interface TeamInvitation {
   status: TeamInviteStatus;
   createdAt: string; // ISO
 }
+
+// Moodboards
+export type Facet = "focus" | "energy" | "social" | "calm";
+
+export interface Moodboard {
+  id: string;
+  name: string;
+  type: "personal" | "team";
+  ownerName: string;
+  teamId?: string;
+  teamName?: string;
+  tags?: string[];
+  updatedAt: string; // ISO
+  coverUrl?: string | null;
+  facets?: Partial<Record<Facet, number>>; // -1..1, optional for preview
+  participants?: Array<{
+    id: string;
+    name: string;
+    avatarUrl?: string | null;
+  }>;
+  previewUrls?: string[]; // small live preview thumbnails
+}

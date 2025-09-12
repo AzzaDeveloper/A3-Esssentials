@@ -1,10 +1,12 @@
 import { getApps, initializeApp, cert, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import fs from "node:fs";
 import path from "node:path";
 
 let app: App;
 let adminAuth: Auth;
+let adminDb: Firestore;
 
 function loadServiceAccountFromFile() {
   const configuredPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
@@ -50,6 +52,7 @@ export function firebaseAdmin() {
     }
   }
   adminAuth ||= getAuth(app);
-  return { app, adminAuth };
+  adminDb ||= getFirestore(app);
+  return { app, adminAuth, adminDb };
 }
 
