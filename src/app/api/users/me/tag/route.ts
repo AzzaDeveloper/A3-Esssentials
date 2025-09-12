@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUserServer } from "@/lib/auth-server";
-import { claimUserTag, normalizeTag, isValidTag } from "@/lib/user";
+import { claimUserTag } from "@/lib/user";
+import { normalizeTag, isValidTag } from "@/lib/tag";
 
 export async function POST(req: Request) {
   const user = await currentUserServer();
