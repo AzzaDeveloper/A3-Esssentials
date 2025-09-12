@@ -7,7 +7,7 @@ Concise, code-focused guide for building the app: a team task and note tool with
 - Next.js App Router (`src/app`), `next@15.5.2`
 - React 19, TypeScript 5
 - Tailwind CSS v4 (+ `cn` util)
-- shadcn UI (optional scaffolding)
+- shadcn UI (components)
 - Firebase Web SDK v12 (Auth, Firestore)
 - ESLint 9 (Next config), Jest 30 (optional tests)
 

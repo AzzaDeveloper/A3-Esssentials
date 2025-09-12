@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { signInEmail, signInWithGooglePopup } from "@/lib/auth";
 import { createServerSessionFromUser } from "@/lib/session";
@@ -69,7 +70,7 @@ export default function LoginPage() {
             <p className="text-stone-400">Welcome back to your mood-driven workspace</p>
           </div>
 
-          <Card className="bg-stone-900/80 border-stone-700 backdrop-blur-sm">
+          <Card className="bg-stone-900/60 border-stone-700/50 backdrop-blur-sm">
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl text-stone-100">Sign in</CardTitle>
               <CardDescription className="text-stone-400">Enter your credentials to access your tasks</CardDescription>
@@ -109,19 +110,15 @@ export default function LoginPage() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <input
+                <Label htmlFor="remember" className="text-sm text-stone-400 gap-2 inline-flex items-center">
+                  <Checkbox
                     id="remember"
-                    type="checkbox"
-                    className="rounded border-stone-600 bg-stone-800 text-purple-400 focus:ring-purple-400/20"
                     checked={remember}
-                    onChange={(e) => setRemember(e.target.checked)}
+                    onCheckedChange={(v) => setRemember(!!v)}
                     disabled={loadingEmail || loadingGoogle}
                   />
-                  <Label htmlFor="remember" className="text-sm text-stone-400">
-                    Remember me
-                  </Label>
-                </div>
+                  Remember me
+                </Label>
                 <Link href="#" className="text-sm text-purple-400 hover:text-purple-300">
                   Forgot password?
                 </Link>

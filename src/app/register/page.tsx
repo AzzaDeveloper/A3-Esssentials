@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { signUpEmail, signInWithGooglePopup } from "@/lib/auth";
 import { createServerSessionFromUser } from "@/lib/session";
@@ -75,7 +76,7 @@ export default function RegisterPage() {
             <p className="text-stone-400">Create your mood-driven workspace</p>
           </div>
 
-          <Card className="bg-stone-900/80 border-stone-700 backdrop-blur-sm">
+          <Card className="bg-stone-900/60 border-stone-700/50 backdrop-blur-sm">
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl text-stone-100">Create account</CardTitle>
               <CardDescription className="text-stone-400">
@@ -160,26 +161,22 @@ export default function RegisterPage() {
                   disabled={loadingEmail || loadingGoogle}
                 />
               </div>
-              <div className="flex items-center space-x-2">
-                <input
+              <Label htmlFor="terms" className="text-sm text-stone-400 inline-flex items-center gap-2">
+                <Checkbox
                   id="terms"
-                  type="checkbox"
-                  className="rounded border-stone-600 bg-stone-800 text-cyan-400 focus:ring-cyan-400/20"
                   checked={acceptTerms}
-                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  onCheckedChange={(v) => setAcceptTerms(!!v)}
                   disabled={loadingEmail || loadingGoogle}
                 />
-                <Label htmlFor="terms" className="text-sm text-stone-400">
-                  I agree to the{" "}
-                  <Link href="#" className="text-cyan-400 hover:text-cyan-300">
-                    Terms of Service
-                  </Link>{" "}
-                  and{" "}
-                  <Link href="#" className="text-cyan-400 hover:text-cyan-300">
-                    Privacy Policy
-                  </Link>
-                </Label>
-              </div>
+                I agree to the{" "}
+                <Link href="#" className="text-cyan-400 hover:text-cyan-300">
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link href="#" className="text-cyan-400 hover:text-cyan-300">
+                  Privacy Policy
+                </Link>
+              </Label>
               <Button type="submit" disabled={loadingEmail || loadingGoogle} className="w-full bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-medium cursor-pointer disabled:cursor-not-allowed">
                 {loadingEmail ? (
                   <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Creating account...</span>
