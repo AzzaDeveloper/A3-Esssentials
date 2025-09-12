@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -25,6 +26,9 @@ import { ProfileMenu } from "@/components/profile-menu"
 import type { Team, TeamInvitation } from "@/lib/types"
 import { toast } from "sonner"
 import { useAuth } from "@/hooks/useAuth"
+import { firebase } from "@/lib/firebase"
+import { isValidTag } from "@/lib/tag"
+import { doc, getDoc } from "firebase/firestore"
 
 // Client state
 type TeamUI = Team & { role?: "Owner" | "Member"; isStarred?: boolean }
@@ -44,6 +48,7 @@ export default function TeamsPage() {
   const [inviteTeamId, setInviteTeamId] = useState<string | null>(null)
   const [inviteeId, setInviteeId] = useState("")
   const [inviting, setInviting] = useState(false)
+  const [memberPreviews, setMemberPreviews] = useState<Record<string, { id: string; displayName: string; photoURL: string | null; tag?: string | null }[]>>({})
   const canCreate = name.trim().length > 0 && !creating
 
   async function handleCreate() {
@@ -94,6 +99,37 @@ export default function TeamsPage() {
 
   useEffect(() => { load() }, [])
 
+  // Fetch up to 5 member profiles per team for avatars
+  useEffect(() => {
+    const run = async () => {
+      if (!teams.length) return
+      const { db } = firebase()
+      const updates: Record<string, { id: string; displayName: string; photoURL: string | null; tag?: string | null }[]> = {}
+      await Promise.all(teams.map(async (t) => {
+        if (memberPreviews[t.id]) return
+        const ids = (t.members || []).slice(0, 5)
+        if (ids.length === 0) { updates[t.id] = []; return }
+        const rows: { id: string; displayName: string; photoURL: string | null; tag?: string | null }[] = []
+        await Promise.all(ids.map(async (uid) => {
+          try {
+            const snap = await getDoc(doc(db, "users", uid))
+            const d: any = snap.exists() ? snap.data() : {}
+            rows.push({
+              id: uid,
+              displayName: String(d.displayName || d.email?.split("@")[0] || "User"),
+              photoURL: (d.photoURL as string | null) ?? null,
+              tag: (d.tag as string | null) ?? null,
+            })
+          } catch {}
+        }))
+        updates[t.id] = rows
+      }))
+      if (Object.keys(updates).length) setMemberPreviews((prev) => ({ ...prev, ...updates }))
+    }
+    run()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teams])
+
   // Load team metadata for invitations (names, counts)
   useEffect(() => {
     const toFetch = Array.from(new Set(invites.map(i => i.teamId))).filter(id => !teamMeta[id])
@@ -118,7 +154,7 @@ export default function TeamsPage() {
     setInviting(true)
     try {
       const raw = inviteeId.trim()
-      const looksLikeTag = raw.startsWith('@') || /^[a-z0-9._-]{3,30}$/i.test(raw)
+      const looksLikeTag = raw.startsWith('@') || isValidTag(raw)
       const payload = looksLikeTag ? { teamId: inviteTeamId, inviteeTag: raw.replace(/^@/, '') } : { teamId: inviteTeamId, inviteeId: raw }
       const res = await fetch('/api/teams/invitations', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
       const data = await res.json().catch(()=>({}))
@@ -368,17 +404,20 @@ export default function TeamsPage() {
                     {/* Team Members Preview */}
                     <div className="flex items-center justify-between">
                       <div className="flex -space-x-2">
-                        {Array.from({ length: Math.min(3, team.memberCount) }).map((_, index) => (
-                          <span key={index} className={team.isStarred ? "p-0.5 rounded-full bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500" : ""}>
+                        {(memberPreviews[team.id] || []).slice(0, 5).map((m) => (
+                          <Link key={m.id} href={`/user/${m.tag || m.id}`} title={m.displayName} className={team.isStarred ? "p-0.5 rounded-full bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500" : ""}>
                             <Avatar className="h-8 w-8 border-2 border-background">
-                              <AvatarImage src={"/placeholder.svg"} alt="member" />
-                              <AvatarFallback className="text-xs">{index + 1}</AvatarFallback>
+                              <AvatarImage src={m.photoURL ?? undefined} alt={m.displayName} />
+                              <AvatarFallback className="text-xs">{m.displayName.slice(0,1).toUpperCase()}</AvatarFallback>
                             </Avatar>
-                          </span>
+                          </Link>
                         ))}
-                        {team.memberCount > 3 && (
+                        {!memberPreviews[team.id] && Array.from({ length: Math.min(3, team.memberCount) }).map((_, index) => (
+                          <span key={index} className="h-8 w-8 rounded-full bg-stone-800 border-2 border-background" />
+                        ))}
+                        {team.memberCount > 5 && (
                           <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-medium text-muted-foreground">
-                            +{team.memberCount - 3}
+                            +{team.memberCount - 5}
                           </div>
                         )}
                       </div>

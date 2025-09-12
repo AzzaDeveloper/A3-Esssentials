@@ -3,7 +3,8 @@ import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { firebaseAdmin } from "@/lib/firebase-admin";
 import { currentUserServer } from "@/lib/auth-server";
 import { createNotification } from "@/lib/notifications";
-import { getUserProfile, normalizeTag, isValidTag } from "@/lib/user";
+import { getUserProfile } from "@/lib/user";
+import { normalizeTag, isValidTag } from "@/lib/tag";
 
 export async function GET() {
   firebaseAdmin();

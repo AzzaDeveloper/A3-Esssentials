@@ -3,6 +3,7 @@ import { currentUserServer } from "@/lib/auth-server";
 import { firebaseAdmin } from "@/lib/firebase-admin";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 function toIso(v: any): string | undefined {
@@ -51,6 +52,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         id: uid,
         displayName: d.displayName || d.email?.split("@")[0] || "User",
         photoURL: d.photoURL || null,
+        tag: (d.tag as string | null) ?? null,
       };
     })
   );
@@ -74,7 +76,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
           <CardContent>
             <div className="flex flex-wrap gap-4">
               {memberProfiles.map((m) => (
-                <div key={m.id} className="flex items-center gap-2 min-w-[12rem]">
+                <Link key={m.id} href={`/user/${m.tag || m.id}`} className="flex items-center gap-2 min-w-[12rem]">
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={m.photoURL ?? undefined} alt={m.displayName} />
                     <AvatarFallback>{m.displayName.slice(0,1).toUpperCase()}</AvatarFallback>
@@ -83,7 +85,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
                     <div className="text-foreground">{m.displayName}</div>
                     <div className="text-muted-foreground text-xs">{m.id === team.ownerId ? 'Owner' : 'Member'}</div>
                   </div>
-                </div>
+                </Link>
               ))}
               {team.memberCount > memberProfiles.length && (
                 <div className="text-sm text-muted-foreground self-center">+{team.memberCount - memberProfiles.length} more…</div>
