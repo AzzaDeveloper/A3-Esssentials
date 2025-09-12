@@ -1,11 +1,16 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ComponentType } from "react"
+import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Check, Sparkles, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { useAuth } from "@/hooks/useAuth"
 
 type BillingCycle = "monthly" | "yearly"
 
@@ -13,7 +18,7 @@ interface Plan {
   id: string
   name: string
   tagline?: string
-  icon?: React.ComponentType<{ className?: string }>
+  icon?: ComponentType<{ className?: string }>
   monthly: number
   yearly: number
   features: string[]
@@ -75,6 +80,60 @@ export function PricingToggleGrid() {
   const isYearly = cycle === "yearly"
 
   const plans = useMemo(() => PLANS, [])
+  const { user } = useAuth()
+  const router = useRouter()
+  const [openPlan, setOpenPlan] = useState<Plan | null>(null)
+
+  // Payment form state
+  const [cardName, setCardName] = useState("")
+  const [cardNumber, setCardNumber] = useState("")
+  const [expiry, setExpiry] = useState("")
+  const [cvc, setCvc] = useState("")
+  const [address, setAddress] = useState("")
+
+  function handleSelect(plan: Plan) {
+    const isFree = (isYearly ? plan.yearly : plan.monthly) === 0
+    if (isFree) {
+      // Free: send unauthenticated users to login; authenticated straight to app
+      if (!user) router.push("/login")
+      else router.push("/")
+      return
+    }
+    // Paid: require login first
+    if (!user) {
+      router.push("/login")
+      return
+    }
+    setOpenPlan(plan)
+  }
+
+  function resetForm() {
+    setCardName("")
+    setCardNumber("")
+    setExpiry("")
+    setCvc("")
+    setAddress("")
+  }
+
+  function closeDialog() {
+    setOpenPlan(null)
+    resetForm()
+  }
+
+  function submitPayment(e: React.FormEvent) {
+    e.preventDefault()
+    // Placeholder: integrate real checkout here
+    console.log("submit payment", {
+      plan: openPlan?.id,
+      cycle,
+      cardName,
+      cardNumber: `•••• ${cardNumber.slice(-4)}`,
+      expiry,
+      cvc: "***",
+      address,
+    })
+    closeDialog()
+  }
 
   return (
     <section className="max-w-6xl mx-auto">
@@ -171,22 +230,113 @@ export function PricingToggleGrid() {
                       ? "bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 text-white hover:opacity-90"
                       : "bg-stone-800 text-white hover:bg-stone-700"
                   )}
-                  onClick={() => {
-                    // Placeholder click handlers. Wire up to checkout later.
-                    // eslint-disable-next-line no-console
-                    console.log("select plan", { plan: plan.id, cycle })
-                  }}
+                  onClick={() => handleSelect(plan)}
                 >
-                  {isFree ? "Continue Free" : plan.cta}
+                  {isFree ? (!user ? "Sign in to continue" : "Start using Free") : plan.cta}
                 </Button>
               </CardContent>
             </Card>
           )
         })}
       </div>
+      <Dialog open={!!openPlan} onOpenChange={(o) => (!o ? closeDialog() : void 0)}>
+        <DialogContent className="bg-stone-900/90 border-stone-700/60 text-white">
+          <DialogHeader>
+            <DialogTitle>
+              {openPlan ? `Subscribe to ${openPlan.name} (${isYearly ? "Yearly" : "Monthly"})` : "Checkout"}
+            </DialogTitle>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={submitPayment}>
+            <div className="space-y-2">
+              <Label htmlFor="cardName" className="text-stone-300">Name on Card</Label>
+              <Input
+                id="cardName"
+                value={cardName}
+                onChange={(e) => setCardName(e.target.value)}
+                required
+                placeholder="Jane Doe"
+                className="bg-stone-800 border-stone-600 text-white placeholder:text-stone-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cardNumber" className="text-stone-300">Card Number</Label>
+              <Input
+                id="cardNumber"
+                inputMode="numeric"
+                pattern="[0-9\s]{12,19}"
+                maxLength={19}
+                value={cardNumber}
+                onChange={(e) => setCardNumber(e.target.value.replace(/[^0-9\s]/g, ""))}
+                required
+                placeholder="4242 4242 4242 4242"
+                className="bg-stone-800 border-stone-600 text-white placeholder:text-stone-500"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="expiry" className="text-stone-300">Expiry (MM/YY)</Label>
+                <Input
+                  id="expiry"
+                  inputMode="numeric"
+                  pattern="(0[1-9]|1[0-2])\/(\d{2})"
+                  placeholder="12/27"
+                  value={expiry}
+                  onChange={(e) => setExpiry(e.target.value)}
+                  required
+                  className="bg-stone-800 border-stone-600 text-white placeholder:text-stone-500"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cvc" className="text-stone-300">CVC</Label>
+                <Input
+                  id="cvc"
+                  inputMode="numeric"
+                  pattern="\d{3,4}"
+                  maxLength={4}
+                  placeholder="123"
+                  value={cvc}
+                  onChange={(e) => setCvc(e.target.value.replace(/[^0-9]/g, ""))}
+                  required
+                  className="bg-stone-800 border-stone-600 text-white placeholder:text-stone-500"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="zip" className="text-stone-300">Postal code</Label>
+                <Input
+                  id="zip"
+                  placeholder="10001"
+                  className="bg-stone-800 border-stone-600 text-white placeholder:text-stone-500"
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="address" className="text-stone-300">Billing Address</Label>
+              <Input
+                id="address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                required
+                placeholder="123 Main St, City, State"
+                className="bg-stone-800 border-stone-600 text-white placeholder:text-stone-500"
+              />
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <Button type="button" variant="ghost" onClick={closeDialog} className="cursor-pointer">
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 text-white hover:opacity-90 cursor-pointer"
+              >
+                Pay & Subscribe
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </section>
   )
 }
 
 export default PricingToggleGrid
-
