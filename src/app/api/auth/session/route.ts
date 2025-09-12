@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { firebaseAdmin } from "@/lib/firebase-admin";
-import { getUserProfile } from "@/lib/user";
+import { getUserProfile, ensureUserTag } from "@/lib/user";
 
 export async function POST(req: Request) {
   try {
@@ -21,7 +21,15 @@ export async function POST(req: Request) {
     try {
       const decoded = await adminAuth.verifyIdToken(idToken, true).catch(() => null);
       if (decoded?.uid) {
-        await getUserProfile(decoded.uid);
+        const profile = await getUserProfile(decoded.uid);
+        // Attempt to auto-claim a tag if missing
+        if (!profile?.tag) {
+          try {
+            // Pull latest auth user for displayName/email
+            const authUser = await adminAuth.getUser(decoded.uid).catch(() => null);
+            await ensureUserTag(decoded.uid, authUser?.displayName || profile?.displayName, authUser?.email || profile?.email);
+          } catch {}
+        }
       }
     } catch (e) {
       // Non-fatal: profile bootstrap should not block session creation

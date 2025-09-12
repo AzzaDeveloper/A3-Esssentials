@@ -24,6 +24,25 @@ export function ProfileMenu() {
 
   const name = user?.displayName || user?.email?.split("@")[0] || "Guest"
   const email = user?.email || ""
+  const [tag, setTag] = useState<string | null>(null)
+  const profileHref = user?.uid ? `/user/${tag || user.uid}` : "/login"
+
+  // Fetch user profile to read tag
+  useEffect(() => {
+    let ignore = false
+    async function load() {
+      if (!user?.uid) { setTag(null); return }
+      try {
+        const res = await fetch('/api/users/me', { cache: 'no-store' })
+        const json = await res.json()
+        if (!ignore) setTag(json?.profile?.tag || null)
+      } catch {
+        if (!ignore) setTag(null)
+      }
+    }
+    load()
+    return () => { ignore = true }
+  }, [user?.uid])
 
   function openMenu() {
     setIsOpen(true)
@@ -61,7 +80,7 @@ export function ProfileMenu() {
 
   const menuItems: { label: string; icon: ComponentType<{ className?: string }>; href?: string }[] = [
     { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-    { label: "Profile", icon: User, href: "/profile" },
+    { label: "Profile", icon: User, href: profileHref },
     { label: "Teams", icon: Users, href: "/teams" },
     { label: "Billing & Plans", icon: CreditCard, href: "/billing" },
     { label: "Account Settings", icon: Settings, href: "/settings" },
@@ -127,7 +146,17 @@ export function ProfileMenu() {
           >
             <div className="p-6">
               {/* Header */}
-              <div className="flex items-center gap-3 mb-8 pb-6 border-b border-stone-700/50">
+              <Link
+                href={profileHref}
+                onClick={() => {
+                  // Navigate to the public profile when clicking header/avatar
+                  closeMenu()
+                }}
+                className={cn(
+                  "flex items-center gap-3 mb-8 pb-6 border-b border-stone-700/50",
+                  "hover:bg-stone-800/40 rounded-lg -mx-2 px-2 py-2 transition-colors"
+                )}
+              >
                 <div className="w-12 h-12 bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500 rounded-full flex items-center justify-center">
                   <User className="w-6 h-6 text-white" />
                 </div>
@@ -139,7 +168,7 @@ export function ProfileMenu() {
                     <p className="text-stone-500 text-xs">Not signed in</p>
                   )}
                 </div>
-              </div>
+              </Link>
 
               {/* Menu Items */}
               <div className="space-y-2">
