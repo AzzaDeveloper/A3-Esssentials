@@ -2,8 +2,22 @@ import { NextResponse } from "next/server";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { firebaseAdmin } from "@/lib/firebase-admin";
 import { currentUserServer } from "@/lib/auth-server";
+import { getUserProfile } from "@/lib/user";
+import type { UserRole } from "@/lib/types";
 
-const MAX_TEAMS_PER_USER = 10;
+function roleMaxTeams(role: UserRole | undefined): number | null {
+  switch (role) {
+    case "paid2":
+      return 10;
+    case "paid1":
+      return 3;
+    case "admin":
+      return null; // unlimited
+    case "user":
+    default:
+      return 1;
+  }
+}
 
 export async function GET() {
   firebaseAdmin();
@@ -52,14 +66,18 @@ export async function POST(req: Request) {
   if (name.length > 120) return NextResponse.json({ ok: false, error: "name_too_long" }, { status: 400 });
   if (description.length > 500) return NextResponse.json({ ok: false, error: "desc_too_long" }, { status: 400 });
 
-  // enforce per-user team limit
-  const currentTeams = await db
-    .collection("teams")
-    .where("members", "array-contains", uid)
-    .limit(MAX_TEAMS_PER_USER + 1)
-    .get();
-  if (currentTeams.size >= MAX_TEAMS_PER_USER) {
-    return NextResponse.json({ ok: false, error: "limit_reached" }, { status: 403 });
+  // enforce per-user team limit based on role
+  const profile = await getUserProfile(uid).catch(() => null);
+  const maxTeams = roleMaxTeams(profile?.role as UserRole | undefined);
+  if (typeof maxTeams === "number") {
+    const currentTeams = await db
+      .collection("teams")
+      .where("members", "array-contains", uid)
+      .limit(maxTeams + 1)
+      .get();
+    if (currentTeams.size >= maxTeams) {
+      return NextResponse.json({ ok: false, error: "limit_reached" }, { status: 403 });
+    }
   }
 
   const now = Timestamp.now();

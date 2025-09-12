@@ -14,9 +14,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Plus, Users, Search, Settings, UserPlus, Crown, Star, MoreVertical, Edit, Trash2, LogOut, Inbox } from "lucide-react"
 import { ProfileMenu } from "@/components/profile-menu"
 import type { Team, TeamInvitation } from "@/lib/types"
@@ -35,6 +37,28 @@ export default function TeamsPage() {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [invites, setInvites] = useState<TeamInvitation[]>([])
+  const canCreate = name.trim().length > 0 && !creating
+
+  async function handleCreate() {
+    if (!name.trim()) { toast.error("Team name is required"); return }
+    setCreating(true)
+    try {
+      const res = await fetch("/api/teams", { method: "POST", headers: { "content-type":"application/json" }, body: JSON.stringify({ name: name.trim(), description: description.trim() }) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.ok) {
+        if (data?.error === 'limit_reached') toast.error("Team limit reached (10)")
+        else if (data?.error === 'unauthorized') toast.error("Please sign in to create a team")
+        else toast.error("Failed to create team")
+        return
+      }
+      toast.success("Team created")
+      setName("")
+      setDescription("")
+      await load()
+    } finally {
+      setCreating(false)
+    }
+  }
 
   async function load() {
     try {
@@ -121,26 +145,10 @@ export default function TeamsPage() {
                     <Input id="team-description" placeholder="What does this team do?" value={description} onChange={(e)=>setDescription(e.target.value)} />
                   </div>
                   <div className="flex justify-end gap-2 pt-4">
-                    <Button variant="outline">Cancel</Button>
-                    <Button onClick={async()=>{
-                      if (!name.trim()) { toast.error("Team name is required"); return }
-                      setCreating(true)
-                      try {
-                        const res = await fetch("/api/teams", { method: "POST", headers: { "content-type":"application/json" }, body: JSON.stringify({ name: name.trim(), description: description.trim() }) })
-                        const data = await res.json()
-                        if (!res.ok || !data?.ok) {
-                          if (data?.error === 'limit_reached') toast.error("Team limit reached (10)")
-                          else toast.error("Failed to create team")
-                        } else {
-                          toast.success("Team created")
-                          setName("")
-                          setDescription("")
-                          await load()
-                        }
-                      } finally {
-                        setCreating(false)
-                      }
-                    }}>
+                    <DialogClose asChild>
+                      <Button variant="outline">Cancel</Button>
+                    </DialogClose>
+                    <Button onClick={handleCreate} disabled={!canCreate}>
                       {creating ? 'Creating...' : 'Create Team'}
                     </Button>
                   </div>
@@ -173,12 +181,41 @@ export default function TeamsPage() {
           <TabsContent value="my-teams" className="space-y-6">
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5 text-primary" />
-              <h2 className="text-xl font-semibold text-foreground">My Teams ({teams.length})</h2>
+              <h2 className="text-xl font-semibold text-foreground">
+                My Teams {loading ? "(…)" : `(${teams.length})`}
+              </h2>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {filteredTeams.map((team) => (
-                <Card key={team.id} className="group hover:shadow-lg transition-shadow bg-stone-900/60 border-stone-700/50">
+            {/* Loading skeleton */}
+            {loading ? (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Card key={i} className="bg-stone-900/60 border-stone-700/50">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <Skeleton className="h-5 w-40" />
+                        <Skeleton className="h-6 w-16" />
+                      </div>
+                      <Skeleton className="mt-2 h-4 w-64" />
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex -space-x-2">
+                          {Array.from({ length: 3 }).map((__, j) => (
+                            <Skeleton key={j} className="h-8 w-8 rounded-full border-2 border-background" />
+                          ))}
+                        </div>
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                      <Skeleton className="h-9 w-full" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {filteredTeams.map((team) => (
+                  <Card key={team.id} className="group hover:shadow-lg transition-shadow bg-stone-900/60 border-stone-700/50">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-2">
@@ -256,9 +293,10 @@ export default function TeamsPage() {
                   </CardContent>
                 </Card>
               ))}
-            </div>
+              </div>
+            )}
 
-            {filteredTeams.length === 0 && (
+            {!loading && filteredTeams.length === 0 && (
               <div className="text-center py-12">
                 <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium text-foreground mb-2">No teams found</h3>
@@ -284,17 +322,21 @@ export default function TeamsPage() {
                         <label htmlFor="team-name" className="text-sm font-medium">
                           Team Name
                         </label>
-                        <Input id="team-name" placeholder="Enter team name..." />
+                        <Input id="team-name" placeholder="Enter team name..." value={name} onChange={(e)=>setName(e.target.value)} />
                       </div>
                       <div className="space-y-2">
                         <label htmlFor="team-description" className="text-sm font-medium">
                           Description
                         </label>
-                        <Input id="team-description" placeholder="What does this team do?" />
+                        <Input id="team-description" placeholder="What does this team do?" value={description} onChange={(e)=>setDescription(e.target.value)} />
                       </div>
                       <div className="flex justify-end gap-2 pt-4">
-                        <Button variant="outline">Cancel</Button>
-                        <Button>Create Team</Button>
+                        <DialogClose asChild>
+                          <Button variant="outline">Cancel</Button>
+                        </DialogClose>
+                        <Button onClick={handleCreate} disabled={!canCreate}>
+                          {creating ? 'Creating...' : 'Create Team'}
+                        </Button>
                       </div>
                     </div>
                   </DialogContent>
