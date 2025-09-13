@@ -137,31 +137,38 @@ export function PricingToggleGrid() {
 
   return (
     <section className="max-w-6xl mx-auto">
-      <div className="flex items-center justify-center gap-3 mb-8">
+      {/* Cycle toggle with floating 'Save 2 months' tab aligned to Yearly */}
+      <div className="relative z-20 flex items-center justify-center gap-3 mb-8">
         <Button
           type="button"
           variant={isYearly ? "ghost" : "secondary"}
           onClick={() => setCycle("monthly")}
           className={cn(
-            "cursor-pointer",
+            "cursor-pointer min-w-[110px]",
             !isYearly && "bg-stone-800 text-white hover:bg-stone-700"
           )}
         >
           Monthly
         </Button>
-        <div className="relative">
+        <div className="relative pt-4">
           <Button
             type="button"
             variant={isYearly ? "secondary" : "ghost"}
             onClick={() => setCycle("yearly")}
             className={cn(
-              "cursor-pointer",
+              "cursor-pointer min-w-[110px]",
               isYearly && "bg-stone-800 text-white hover:bg-stone-700"
             )}
           >
             Yearly
           </Button>
-          <Badge className="absolute -top-2 -right-2 bg-gradient-to-r from-emerald-500/30 to-teal-500/30 border-emerald-400/40 text-white">
+          <Badge
+            className={cn(
+              "absolute -top-3 left-1/2 -translate-x-1/2 z-30",
+              "rounded-full px-2.5 py-0.5 text-xs shadow-lg",
+              "bg-gradient-to-r from-emerald-500/30 to-teal-500/30 border-emerald-400/40 text-white"
+            )}
+          >
             Save 2 months
           </Badge>
         </div>
