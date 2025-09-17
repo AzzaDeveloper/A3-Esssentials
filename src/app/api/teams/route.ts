@@ -43,6 +43,8 @@ export async function GET() {
       members: x.members ?? [],
       memberCount: x.memberCount ?? (x.members?.length ?? 0),
       isPublic: x.isPublic ?? false,
+      role: x.role ?? {},
+      teamRole: x.teamRole ?? {},
       createdAt: (x.createdAt as Timestamp)?.toDate().toISOString(),
       updatedAt: (x.updatedAt as Timestamp)?.toDate().toISOString(),
     };
@@ -88,6 +90,8 @@ export async function POST(req: Request) {
     members: [uid],
     memberCount: 1,
     isPublic: false,
+    role: { [uid]: [] },
+    teamRole: { [uid]: [] },
     createdAt: now,
     updatedAt: now,
   });
