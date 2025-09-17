@@ -8,13 +8,13 @@ interface PageProps {
 }
 
 export default async function MoodboardDetailPage({ params }: PageProps) {
-  const id = params.moodboardId;
-  const board = await getMoodboardById(id);
+  const { moodboardId } = await params
+  const board = await getMoodboardById(moodboardId);
   if (!board) return notFound();
 
   return (
     <div className="fixed inset-0">
-      <BoardCanvas boardId={id} />
+      <BoardCanvas boardId={moodboardId} />
       {/* Overlay header */}
       <div className="pointer-events-none absolute left-4 top-16 z-10">
         <div className="rounded-md bg-stone-900/70 backdrop-blur border border-stone-800 px-3 py-2">

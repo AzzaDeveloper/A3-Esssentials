@@ -1,28 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BoardTaskElement } from "@/components/moodboard/board-task-element";
 import { firebase } from "@/lib/firebase";
+import type { MoodboardElement } from "@/lib/types";
 import {
-  ref,
+  BOARD_TASK_DEFAULT_HEIGHT,
+  BOARD_TASK_DEFAULT_WIDTH,
+  createDefaultMoodboardTask,
+  moodboardElementComparator,
+  normalizeElementSnapshot,
+} from "@/lib/moodboard-task";
+import {
+  get,
   onValue,
   push,
-  update,
+  ref,
   remove,
   serverTimestamp,
+  set,
+  update,
 } from "firebase/database";
-
-export interface BoardElement {
-  id: string;
-  type: "note"; // placeholder type until task cards later
-  x: number; // world coords (px)
-  y: number; // world coords (px)
-  w?: number;
-  h?: number;
-  text?: string;
-  color?: string;
-  createdAt?: any;
-  updatedAt?: any;
-}
+import { AlertTriangle } from "lucide-react";
 
 interface BoardCanvasProps {
   boardId: string;
@@ -30,8 +29,10 @@ interface BoardCanvasProps {
 
 export function BoardCanvas({ boardId }: BoardCanvasProps) {
   const { rtdb } = firebase();
-  const [elements, setElements] = useState<BoardElement[]>([]);
+  const [elements, setElements] = useState<MoodboardElement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [metaWarning, setMetaWarning] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   // Camera transform
   const [scale, setScale] = useState(1);
@@ -45,132 +46,195 @@ export function BoardCanvas({ boardId }: BoardCanvasProps) {
   const dragStartRef = useRef({ x: 0, y: 0 });
   const elemStartRef = useRef({ x: 0, y: 0 });
 
-  // Live subscribe to elements (Realtime Database)
   useEffect(() => {
     const elementsRef = ref(rtdb, `moodboards/${boardId}/elements`);
-    const unsub = onValue(elementsRef, (snapshot) => {
-      const val = snapshot.val() as Record<string, any> | null;
-      const rows: BoardElement[] = val
-        ? Object.entries(val).map(([id, data]) => ({
-            id,
-            type: (data?.type as any) || "note",
-            x: Number(data?.x ?? 0),
-            y: Number(data?.y ?? 0),
-            w: Number(data?.w ?? 160),
-            h: Number(data?.h ?? 120),
-            text: String(data?.text ?? ""),
-            color: String(data?.color ?? "#fde68a"),
-            createdAt: data?.createdAt,
-            updatedAt: data?.updatedAt,
-          }))
-        : [];
-      // sort by createdAt if available
-      rows.sort((a, b) => {
-        const av = typeof a.createdAt === "number" ? a.createdAt : 0;
-        const bv = typeof b.createdAt === "number" ? b.createdAt : 0;
-        return av - bv;
-      });
-      setElements(rows);
+    const unsubscribe = onValue(
+      elementsRef,
+      (snapshot) => {
+        const value = snapshot.val() as Record<string, unknown> | null;
+        const nextElements: MoodboardElement[] = [];
+        const migrations: Promise<unknown>[] = [];
+
+        if (value) {
+        for (const [id, data] of Object.entries(value)) {
+          const { element, requiresMigration, clearLegacyText } = normalizeElementSnapshot(boardId, id, data);
+          nextElements.push(element);
+
+          if (requiresMigration || clearLegacyText) {
+            const elementRef = ref(rtdb, `moodboards/${boardId}/elements/${id}`);
+            const payload: Record<string, unknown> = {
+              type: "task",
+              x: element.x,
+              y: element.y,
+              w: element.w ?? BOARD_TASK_DEFAULT_WIDTH,
+              h: element.h ?? BOARD_TASK_DEFAULT_HEIGHT,
+              task: element.task,
+              updatedAt: serverTimestamp(),
+            };
+
+            if (typeof (data as any)?.color === "string") {
+              payload.color = (data as any).color;
+            }
+            if (clearLegacyText && typeof (data as any)?.text !== "undefined") {
+              payload.text = null;
+            }
+
+            migrations.push(update(elementRef, payload));
+          }
+        }
+      }
+
+      nextElements.sort(moodboardElementComparator);
+      setElements(nextElements);
       setLoading(false);
-    });
-    return () => unsub();
-  }, [rtdb, boardId]);
+      setConnectionError(null);
 
-  const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    // Zoom towards cursor position for nicer UX
-    const delta = -e.deltaY;
+      if (migrations.length) {
+        void Promise.allSettled(migrations);
+      }
+      },
+      (error) => {
+        console.error("board-canvas:onValue", error);
+        setConnectionError("Realtime connection lost. Please refresh or check Firebase configuration.");
+        setLoading(false);
+      },
+    );
+
+    return () => unsubscribe();
+  }, [boardId, rtdb]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const metaSnap = await get(ref(rtdb, `moodboards/${boardId}/meta`));
+        if (cancelled) return;
+        if (!metaSnap.exists()) {
+          setMetaWarning("Realtime sync for this moodboard isn't initialized. Tasks and notes may not persist.");
+        } else {
+          setMetaWarning(null);
+        }
+        setConnectionError((prev) => (prev && prev.startsWith("Unable to reach") ? null : prev));
+      } catch (error) {
+        if (cancelled) return;
+        console.error("board-canvas:meta-check", error);
+        setConnectionError("Unable to reach Firebase Realtime Database. Changes won't be saved.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [boardId, rtdb]);
+
+  const onWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    const delta = -event.deltaY;
     const zoomFactor = Math.exp(delta * 0.001);
-    const prevScale = scale;
-    const nextScale = Math.min(3, Math.max(0.25, prevScale * zoomFactor));
-    if (nextScale === prevScale) return;
+    const previousScale = scale;
+    const nextScale = Math.min(3, Math.max(0.25, previousScale * zoomFactor));
+    if (nextScale === previousScale) return;
 
-    // Adjust offset so the point under cursor stays in place
-    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-    const cx = e.clientX - rect.left;
-    const cy = e.clientY - rect.top;
-    const worldX = (cx - offset.x) / prevScale;
-    const worldY = (cy - offset.y) / prevScale;
+    const rect = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const cx = event.clientX - rect.left;
+    const cy = event.clientY - rect.top;
+    const worldX = (cx - offset.x) / previousScale;
+    const worldY = (cy - offset.y) / previousScale;
 
-    const newOffsetX = cx - worldX * nextScale;
-    const newOffsetY = cy - worldY * nextScale;
-    setOffset({ x: newOffsetX, y: newOffsetY });
+    setOffset({ x: cx - worldX * nextScale, y: cy - worldY * nextScale });
     setScale(nextScale);
-  }, [scale, offset.x, offset.y]);
+  }, [offset.x, offset.y, scale]);
 
-  const onBackgroundPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).dataset.elid) return; // element drag handled elsewhere
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  const onBackgroundPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).dataset.elid) return;
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     isPanningRef.current = true;
-    panStartRef.current = { x: e.clientX, y: e.clientY };
+    panStartRef.current = { x: event.clientX, y: event.clientY };
     panOriginRef.current = { ...offset };
   }, [offset]);
 
-  const onBackgroundPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+  const onBackgroundPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (!isPanningRef.current) return;
-    const dx = e.clientX - panStartRef.current.x;
-    const dy = e.clientY - panStartRef.current.y;
+    const dx = event.clientX - panStartRef.current.x;
+    const dy = event.clientY - panStartRef.current.y;
     setOffset({ x: panOriginRef.current.x + dx, y: panOriginRef.current.y + dy });
   }, []);
 
-  const onBackgroundPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+  const onBackgroundPointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     isPanningRef.current = false;
-    (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
   }, []);
 
-  const startElementDrag = useCallback((id: string, e: React.PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  const startElementDrag = useCallback((id: string, event: React.PointerEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("button, a, input, textarea, select, [data-drag-stop]")) return;
+    event.stopPropagation();
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
     dragIdRef.current = id;
-    dragStartRef.current = { x: e.clientX, y: e.clientY };
-    const el = elements.find((x) => x.id === id);
-    elemStartRef.current = { x: el?.x ?? 0, y: el?.y ?? 0 };
+    dragStartRef.current = { x: event.clientX, y: event.clientY };
+    const element = elements.find((entry) => entry.id === id);
+    elemStartRef.current = { x: element?.x ?? 0, y: element?.y ?? 0 };
   }, [elements]);
 
-  const onElementPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+  const onElementPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const id = dragIdRef.current;
     if (!id) return;
-    const dx = (e.clientX - dragStartRef.current.x) / scale;
-    const dy = (e.clientY - dragStartRef.current.y) / scale;
-    setElements((prev) => prev.map((el) => (el.id === id ? { ...el, x: Math.round(elemStartRef.current.x + dx), y: Math.round(elemStartRef.current.y + dy) } : el)));
+    const dx = (event.clientX - dragStartRef.current.x) / scale;
+    const dy = (event.clientY - dragStartRef.current.y) / scale;
+    setElements((previous) =>
+      previous.map((element) =>
+        element.id === id
+          ? { ...element, x: Math.round(elemStartRef.current.x + dx), y: Math.round(elemStartRef.current.y + dy) }
+          : element,
+      ),
+    );
   }, [scale]);
 
-  const endElementDrag = useCallback(async (e: React.PointerEvent<HTMLDivElement>) => {
+  const endElementDrag = useCallback(async (event: React.PointerEvent<HTMLDivElement>) => {
     const id = dragIdRef.current;
     if (!id) return;
-    (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
     dragIdRef.current = null;
-    const el = elements.find((x) => x.id === id);
-    if (!el) return;
+    const element = elements.find((entry) => entry.id === id);
+    if (!element) return;
     try {
       await update(ref(rtdb, `moodboards/${boardId}/elements/${id}`), {
-        x: el.x,
-        y: el.y,
+        x: element.x,
+        y: element.y,
         updatedAt: serverTimestamp(),
       });
     } catch {}
-  }, [rtdb, boardId, elements]);
+  }, [boardId, elements, rtdb]);
 
-  async function addNote(center?: { x: number; y: number }) {
-    const world = center ?? { x: (-offset.x + (window.innerWidth / 2)) / scale, y: (-offset.y + (window.innerHeight / 2)) / scale };
+  const addTask = useCallback(async (center?: { x: number; y: number }) => {
+    const world = center ?? {
+      x: (-offset.x + window.innerWidth / 2) / scale,
+      y: (-offset.y + window.innerHeight / 2) / scale,
+    };
+    const elementsRef = ref(rtdb, `moodboards/${boardId}/elements`);
+    const newRef = push(elementsRef);
+    const elementId = newRef.key ?? `task-${Date.now()}`;
+    const nowIso = new Date().toISOString();
+    const task = createDefaultMoodboardTask(elementId, boardId, nowIso);
     const payload = {
-      type: "note",
-      x: Math.round(world.x - 80),
-      y: Math.round(world.y - 60),
-      w: 160,
-      h: 120,
-      text: "New note",
-      color: "#fde68a",
+      type: "task" as const,
+      x: Math.round(world.x - BOARD_TASK_DEFAULT_WIDTH / 2),
+      y: Math.round(world.y - BOARD_TASK_DEFAULT_HEIGHT / 2),
+      w: BOARD_TASK_DEFAULT_WIDTH,
+      h: BOARD_TASK_DEFAULT_HEIGHT,
+      task,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
     try {
-      await push(ref(rtdb, `moodboards/${boardId}/elements`), payload);
-    } catch {}
-  }
+      await set(newRef, payload);
+    } catch (error) {
+      console.error('board-canvas:addTask', error);
+    }
+  }, [boardId, offset.x, offset.y, rtdb, scale]);
 
-  function removeElement(id: string) {
+  const removeElement = useCallback((id: string) => {
     remove(ref(rtdb, `moodboards/${boardId}/elements/${id}`)).catch(() => {});
-  }
+  }, [boardId, rtdb]);
 
   const transformStyle = useMemo(() => ({
     transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
@@ -178,8 +242,7 @@ export function BoardCanvas({ boardId }: BoardCanvasProps) {
   }), [offset.x, offset.y, scale]);
 
   const gridStyle = useMemo<React.CSSProperties>(() => {
-    const cell = 40; // px
-    // Offset the two gradient layers separately: x for vertical lines, y for horizontal lines
+    const cell = 40;
     return {
       backgroundImage:
         "linear-gradient(to right, rgba(0,0,0,0.08) 1px, transparent 1px)," +
@@ -191,20 +254,27 @@ export function BoardCanvas({ boardId }: BoardCanvasProps) {
 
   return (
     <div className="relative w-screen h-screen bg-gray-500 overflow-hidden select-none">
-      {/* Toolbar */}
       <div className="absolute left-3 top-3 z-20 flex items-center gap-2">
         <button
           className="px-3 py-1.5 text-sm rounded-md bg-stone-800 text-stone-100 hover:bg-stone-700"
-          onClick={() => addNote()}
+          onClick={() => addTask()}
         >
-          Add Note
+          Add Task
         </button>
         <div className="px-2 py-1 text-xs rounded bg-stone-900/80 text-stone-300 border border-stone-800">
           {Math.round(scale * 100)}%
         </div>
       </div>
 
-      {/* Background for panning and zoom */}
+      {(metaWarning || connectionError) && (
+        <div className="absolute left-3 top-14 z-30 max-w-sm rounded-md border border-amber-400/40 bg-amber-900/80 px-3 py-2 text-xs text-amber-100 backdrop-blur">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>{connectionError ?? metaWarning}</span>
+          </div>
+        </div>
+      )}
+
       <div
         className="absolute inset-0 z-10"
         onWheel={onWheel}
@@ -212,34 +282,23 @@ export function BoardCanvas({ boardId }: BoardCanvasProps) {
         onPointerMove={onBackgroundPointerMove}
         onPointerUp={onBackgroundPointerUp}
       >
-        {/* Grid that pans with camera */}
         <div className="absolute inset-0" style={gridStyle} />
 
         <div className="absolute left-0 top-0 will-change-transform" style={transformStyle}>
-          {/* Content area */}
-          {elements.map((el) => (
-            <div
-              key={el.id}
-              data-elid={el.id}
-              className="absolute rounded-md shadow-md border border-black/10"
-              style={{ left: el.x, top: el.y, width: el.w ?? 160, height: el.h ?? 120, backgroundColor: el.color ?? "#fde68a" }}
-              onPointerDown={(e) => startElementDrag(el.id, e)}
+          {elements.map((element) => (
+            <BoardTaskElement
+              key={element.id}
+              element={element}
+              onPointerDown={(event) => startElementDrag(element.id, event)}
               onPointerMove={onElementPointerMove}
               onPointerUp={endElementDrag}
-            >
-              <div className="flex items-center justify-between gap-2 px-2 py-1 text-[11px] text-stone-800/80">
-                <span>Note</span>
-                <button className="hover:text-red-600" onClick={(e) => { e.stopPropagation(); removeElement(el.id); }}>×</button>
-              </div>
-              <div className="px-2 text-stone-900 text-sm leading-snug line-clamp-6">
-                {el.text || ""}
-              </div>
-            </div>
+              onRemove={() => removeElement(element.id)}
+            />
           ))}
 
           {!elements.length && !loading && (
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-stone-400 text-sm">
-              Board is empty. Use "Add Note" to place your first item.
+              Board is empty. Use "Add Task" to place your first card.
             </div>
           )}
         </div>

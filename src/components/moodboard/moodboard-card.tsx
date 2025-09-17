@@ -1,12 +1,24 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { Moodboard, Facet } from "@/lib/types";
+import { MoreHorizontal, Trash2, Loader2 } from "lucide-react";
 
 interface MoodboardCardProps {
   board: Moodboard;
   className?: string;
+  onDelete?: () => void;
+  deleting?: boolean;
 }
 
 const FACET_LABELS: Record<Facet, string> = {
@@ -33,7 +45,7 @@ function FacetBar({ facet, value = 0 }: { facet: Facet; value?: number }) {
   );
 }
 
-export function MoodboardCard({ board, className }: MoodboardCardProps) {
+export function MoodboardCard({ board, className, onDelete, deleting = false }: MoodboardCardProps) {
   const initials = board.name
     .split(/\s+/)
     .slice(0, 2)
@@ -68,11 +80,46 @@ export function MoodboardCard({ board, className }: MoodboardCardProps) {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          {board.tags?.slice(0, 3).map((t) => (
-            <Badge key={t} variant="secondary" className="bg-stone-800 text-stone-200">
-              {t}
-            </Badge>
-          ))}
+          <div className="flex items-center gap-1">
+            {board.tags?.slice(0, 3).map((t) => (
+              <Badge key={t} variant="secondary" className="bg-stone-800 text-stone-200">
+                {t}
+              </Badge>
+            ))}
+          </div>
+          {onDelete ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-stone-400 hover:text-stone-100 hover:bg-stone-800"
+                  disabled={deleting}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                >
+                  {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-5 w-5" />}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40" sideOffset={8} onClick={(event) => event.stopPropagation()}>
+                <DropdownMenuLabel>Board actions</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-red-500 focus:text-red-500"
+                  disabled={deleting}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    if (deleting) return;
+                    onDelete?.();
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="space-y-3">

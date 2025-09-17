@@ -227,6 +227,11 @@ export async function createMoodboard(input: Partial<Moodboard>): Promise<Moodbo
     previewUrls: input.previewUrls ?? [],
   };
 
+  const participantIds = Array.from(
+    new Set((base.participants ?? []).map((participant: any) => String(participant?.id ?? "")))
+  ).filter(Boolean);
+  (base as any).participantIds = participantIds;
+
   try {
     const { app, adminRtdb } = firebaseAdmin();
     const db = getFirestore(app);
@@ -318,9 +323,24 @@ export async function createMoodboardForUser(uid: string, input: Partial<Moodboa
   base.participantIds = Array.from(ids);
 
   try {
-    const { app } = firebaseAdmin();
+    const { app, adminRtdb } = firebaseAdmin();
     const db = getFirestore(app);
     const ref = await db.collection(COLLECTION).add(base);
+
+    // Mirror minimal access metadata to Realtime Database for client security rules.
+    try {
+      if (adminRtdb) {
+        const { getDatabase } = await import("firebase-admin/database");
+        const db2 = adminRtdb || getDatabase(app);
+        await db2.ref(`moodboards/${ref.id}/meta`).set({
+          participantIds: Array.isArray(base.participantIds) ? base.participantIds : [uid],
+          teamId: base.teamId || null,
+          type: base.type,
+          ownerId: uid,
+        });
+      }
+    } catch {}
+
     return {
       id: ref.id,
       name: base.name,
@@ -350,5 +370,40 @@ export async function createMoodboardForUser(uid: string, input: Partial<Moodboa
       participants: base.participants,
       previewUrls: base.previewUrls,
     } as Moodboard;
+  }
+}
+
+export async function deleteMoodboardForUser(uid: string, boardId: string): Promise<"ok" | "not_found" | "forbidden"> {
+  if (!boardId) return "not_found";
+
+  try {
+    const { app, adminRtdb } = firebaseAdmin();
+    const db = getFirestore(app);
+    const docRef = db.collection(COLLECTION).doc(boardId);
+    const snap = await docRef.get();
+    if (!snap.exists) return "not_found";
+
+    const data = snap.data() as any;
+    const ownerId: string | null = typeof data?.ownerId === "string" ? data.ownerId : null;
+    const participantIds: string[] = Array.isArray(data?.participantIds)
+      ? data.participantIds.map((id: any) => String(id))
+      : [];
+
+    const isOwner = ownerId ? ownerId === uid : false;
+    const isParticipant = participantIds.includes(uid);
+    const allowed = isOwner || (!ownerId && isParticipant);
+    if (!allowed) return "forbidden";
+
+    await docRef.delete();
+
+    try {
+      const db2 = adminRtdb ?? (await import("firebase-admin/database")).getDatabase(app);
+      await db2.ref(`moodboards/${boardId}`).remove();
+    } catch {}
+
+    return "ok";
+  } catch (error) {
+    console.error("deleteMoodboardForUser", error);
+    return "forbidden";
   }
 }
