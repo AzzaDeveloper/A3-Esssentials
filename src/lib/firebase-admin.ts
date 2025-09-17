@@ -1,10 +1,14 @@
 import { getApps, initializeApp, cert, type App } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getDatabase, type Database } from "firebase-admin/database";
 import fs from "node:fs";
 import path from "node:path";
 
 let app: App;
 let adminAuth: Auth;
+let adminDb: Firestore;
+let adminRtdb: Database;
 
 function loadServiceAccountFromFile() {
   const configuredPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
@@ -50,6 +54,14 @@ export function firebaseAdmin() {
     }
   }
   adminAuth ||= getAuth(app);
-  return { app, adminAuth };
+  adminDb ||= getFirestore(app);
+  // Realtime Database admin (optional)
+  // const dbUrl = process.env.NEXT_PUBLIC_FB_DB_URL || process.env.FIREBASE_DATABASE_URL;
+  if (!adminRtdb) {
+    try {
+      adminRtdb = getDatabase(app);
+    } catch {}
+  }
+  return { app, adminAuth, adminDb, adminRtdb };
 }
 
