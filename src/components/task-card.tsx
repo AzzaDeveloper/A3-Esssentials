@@ -106,14 +106,14 @@ export function TaskCard({ task }: TaskCardProps) {
   return (
     <Card
       className={cn(
-        "relative overflow-hidden bg-white text-slate-900 transition-all duration-300 border",
+        "relative h-full w-full overflow-hidden bg-white text-slate-900 transition-all duration-300 border",
         "shadow-sm hover:shadow-xl",
         primaryMoodSettings.borderColor,
       )}
     >
       <div className={cn("absolute inset-x-0 top-0 h-2 bg-gradient-to-r", primaryMoodSettings.colors)} />
 
-      <CardHeader className="pb-4 pt-6">
+      <CardHeader className="shrink-0 pb-4 pt-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 space-y-3">
             <h3 className="text-2xl font-bold text-slate-900 leading-tight">{title}</h3>
@@ -149,10 +149,12 @@ export function TaskCard({ task }: TaskCardProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-6">
-        <p className="text-slate-600 leading-relaxed">{description || "No description provided."}</p>
+      <CardContent className="flex flex-1 flex-col gap-6 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-auto">
+          <p className="text-slate-600 leading-relaxed">{description || "No description provided."}</p>
+        </div>
 
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex -space-x-2">
               {teamMembers.length === 0 && (

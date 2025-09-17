@@ -13,9 +13,18 @@ import {
 import { BoardTaskElement } from "@/components/moodboard/board-task-element";
 import { Button } from "@/components/ui/button";
 import { CreateTaskDialog, type ManualTaskFormState } from "@/components/tasks/create-task-dialog";
+import { TaskEditorDialog } from "@/components/moodboard/task-editor-dialog";
 import { firebase } from "@/lib/firebase";
 import type { MoodboardElement, MoodboardTask } from "@/lib/types";
-import { BOARD_TASK_DEFAULT_HEIGHT, BOARD_TASK_DEFAULT_WIDTH, createDefaultMoodboardTask } from "@/lib/moodboard-task";
+import {
+  BOARD_TASK_DEFAULT_HEIGHT,
+  BOARD_TASK_DEFAULT_WIDTH,
+  BOARD_TASK_MAX_HEIGHT,
+  BOARD_TASK_MAX_WIDTH,
+  BOARD_TASK_MIN_HEIGHT,
+  BOARD_TASK_MIN_WIDTH,
+  createDefaultMoodboardTask,
+} from "@/lib/moodboard-task";
 import {
   normalizeDateInput,
   normalizeEnergy,
@@ -30,6 +39,7 @@ import { onValue, push, ref, remove, serverTimestamp, set, update } from "fireba
 
 interface BoardCanvasProps {
   boardId: string;
+  isPersonal?: boolean;
 }
 
 function toElementPosition(world: { x: number; y: number }) {
@@ -53,6 +63,10 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
   const dragIdRef = useRef<string | null>(null);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const elemStartRef = useRef({ x: 0, y: 0 });
+  const resizeIdRef = useRef<string | null>(null);
+  const resizeStartRef = useRef({ x: 0, y: 0 });
+  const sizeStartRef = useRef({ w: BOARD_TASK_DEFAULT_WIDTH, h: BOARD_TASK_DEFAULT_HEIGHT });
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     const elementsRef = ref(rtdb, `moodboards/${boardId}/elements`);
@@ -77,13 +91,16 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
           const widthValue = Number((raw as any).w);
           const heightValue = Number((raw as any).h);
 
+          const normalizedWidth = Number.isFinite(widthValue) ? widthValue : BOARD_TASK_DEFAULT_WIDTH;
+          const normalizedHeight = Number.isFinite(heightValue) ? heightValue : BOARD_TASK_DEFAULT_HEIGHT;
+
           const element: MoodboardElement = {
             id,
             type: "task",
             x: Number.isFinite(xValue) ? xValue : 0,
             y: Number.isFinite(yValue) ? yValue : 0,
-            w: Number.isFinite(widthValue) ? widthValue : BOARD_TASK_DEFAULT_WIDTH,
-            h: Number.isFinite(heightValue) ? heightValue : BOARD_TASK_DEFAULT_HEIGHT,
+            w: Math.min(BOARD_TASK_MAX_WIDTH, Math.max(BOARD_TASK_MIN_WIDTH, normalizedWidth)),
+            h: Math.min(BOARD_TASK_MAX_HEIGHT, Math.max(BOARD_TASK_MIN_HEIGHT, normalizedHeight)),
             task: raw.task as MoodboardTask,
             color: typeof (raw as any).color === "string" ? (raw as any).color : undefined,
             createdAt: (raw as any).createdAt,
@@ -164,6 +181,7 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
     (id: string, event: PointerEvent<HTMLDivElement>) => {
       const target = event.target as HTMLElement;
       if (target.closest("button, a, input, textarea, select, [data-drag-stop]")) return;
+      if (resizeIdRef.current) return;
       event.stopPropagation();
       (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
       dragIdRef.current = id;
@@ -176,6 +194,27 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
 
   const onElementPointerMove = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
+      if (resizeIdRef.current) {
+        const id = resizeIdRef.current;
+        const dx = (event.clientX - resizeStartRef.current.x) / scale;
+        const dy = (event.clientY - resizeStartRef.current.y) / scale;
+        setElements((previous) =>
+          previous.map((element) => {
+            if (element.id !== id) return element;
+            const baseWidth = sizeStartRef.current.w ?? BOARD_TASK_DEFAULT_WIDTH;
+            const baseHeight = sizeStartRef.current.h ?? BOARD_TASK_DEFAULT_HEIGHT;
+            const nextWidth = Math.round(
+              Math.min(BOARD_TASK_MAX_WIDTH, Math.max(BOARD_TASK_MIN_WIDTH, baseWidth + dx)),
+            );
+            const nextHeight = Math.round(
+              Math.min(BOARD_TASK_MAX_HEIGHT, Math.max(BOARD_TASK_MIN_HEIGHT, baseHeight + dy)),
+            );
+            return { ...element, w: nextWidth, h: nextHeight };
+          }),
+        );
+        return;
+      }
+
       const id = dragIdRef.current;
       if (!id) return;
       const dx = (event.clientX - dragStartRef.current.x) / scale;
@@ -205,6 +244,43 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
         });
       } catch (error) {
         console.error("board-canvas:endElementDrag", error);
+      }
+    },
+    [boardId, elements, rtdb],
+  );
+
+  const startElementResize = useCallback(
+    (id: string, event: PointerEvent<HTMLDivElement>) => {
+      const element = elements.find((entry) => entry.id === id);
+      if (!element) return;
+      event.stopPropagation();
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+      resizeIdRef.current = id;
+      resizeStartRef.current = { x: event.clientX, y: event.clientY };
+      sizeStartRef.current = {
+        w: element.w ?? BOARD_TASK_DEFAULT_WIDTH,
+        h: element.h ?? BOARD_TASK_DEFAULT_HEIGHT,
+      };
+    },
+    [elements],
+  );
+
+  const endElementResize = useCallback(
+    async (event: PointerEvent<HTMLDivElement>) => {
+      const id = resizeIdRef.current;
+      if (!id) return;
+      (event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId);
+      resizeIdRef.current = null;
+      const element = elements.find((entry) => entry.id === id);
+      if (!element) return;
+      try {
+        await update(ref(rtdb, `moodboards/${boardId}/elements/${id}`), {
+          w: element.w ?? BOARD_TASK_DEFAULT_WIDTH,
+          h: element.h ?? BOARD_TASK_DEFAULT_HEIGHT,
+          updatedAt: serverTimestamp(),
+        });
+      } catch (error) {
+        console.error("board-canvas:endElementResize", error);
       }
     },
     [boardId, elements, rtdb],
@@ -310,12 +386,46 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
     } satisfies CSSProperties;
   }, [offset.x, offset.y]);
 
+  const editingElement = useMemo(
+    () => (editingId ? elements.find((entry) => entry.id === editingId) ?? null : null),
+    [editingId, elements],
+  );
+
+  const handleTaskUpdate = useCallback(
+    async (updatedTask: MoodboardTask) => {
+      if (!editingId) return;
+      setElements((previous) =>
+        previous.map((element) =>
+          element.id === editingId
+            ? {
+                ...element,
+                task: updatedTask,
+              }
+            : element,
+        ),
+      );
+      try {
+        await update(ref(rtdb, `moodboards/${boardId}/elements/${editingId}`), {
+          task: updatedTask,
+          updatedAt: serverTimestamp(),
+        });
+        setEditingId(null);
+      } catch (error) {
+        console.error("board-canvas:handleTaskUpdate", error);
+        throw error;
+      }
+    },
+    [boardId, editingId, rtdb],
+  );
+
   return (
-    <div className="relative h-screen w-screen select-none overflow-hidden bg-white">
+    <>
+      <div className="relative h-screen w-screen select-none overflow-hidden bg-white">
       <div className="absolute left-3 top-3 z-20 flex items-center gap-2">
         <CreateTaskDialog
           triggerLabel="Add Task"
           triggerClassName="border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
+          isPersonalBoard={isPersonal}
           onManualCreate={handleManualCreate}
         />
         <Button
@@ -353,6 +463,10 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
               onPointerDown={(event) => startElementDrag(element.id, event)}
               onPointerMove={onElementPointerMove}
               onPointerUp={endElementDrag}
+              onResizePointerDown={(event) => startElementResize(element.id, event)}
+              onResizePointerMove={onElementPointerMove}
+              onResizePointerUp={endElementResize}
+              onEdit={() => setEditingId(element.id)}
               onRemove={() => removeElement(element.id)}
             />
           ))}
@@ -364,7 +478,21 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
           )}
         </div>
       </div>
-    </div>
+
+      </div>
+
+      <TaskEditorDialog
+        open={Boolean(editingId)}
+        task={editingElement?.task ?? null}
+        onOpenChange={(next) => {
+          if (!next) {
+            setEditingId(null);
+          }
+        }}
+        onSubmit={handleTaskUpdate}
+        isPersonalBoard={isPersonal}
+      />
+    </>
   );
 }
 
