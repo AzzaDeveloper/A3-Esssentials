@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, useTransition, type FormEvent } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,8 +18,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { Task, TaskEnergy, TaskMember, TaskMood, TaskUrgency } from "@/lib/types";
-import { AlertCircle, Plus, Sparkles, UserPlus } from "lucide-react";
+import { generateTaskDraft } from "@/app/(actions)/tasks";
+import { DEFAULT_MOOD, MOOD_CONFIG, MOOD_ORDER } from "@/lib/moods";
+import type { TaskDraft, TaskMood, TeamMemberContext } from "@/lib/types";
+import { AlertCircle, Loader2, Plus, Sparkles, UserPlus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type CreateTaskMode = "natural" | "manual";
 
@@ -28,73 +31,11 @@ export interface CreateTaskDialogProps {
   triggerClassName?: string;
   onManualCreate?: (taskDraft: ManualTaskFormState) => void | Promise<void>;
   isPersonalBoard?: boolean;
+  teamMembers?: TeamMemberContext[];
 }
 
-export interface ManualTaskFormState {
-  title: string;
-  description: string;
-  tags: string[];
-  priority: Task["priority"];
-  assigneeId: string;
-  dueDate: string;
-  urgency: TaskUrgency;
-  energy: TaskEnergy;
-  moods: TaskMood[];
-  teamMembers: Array<
-    Pick<TaskMember, "name"> & Partial<Pick<TaskMember, "id" | "initials">>
-  >;
-  createdAt: string;
-  updatedAt: string;
-}
+export type ManualTaskFormState = TaskDraft;
 
-const moodStyles: Record<
-  TaskMood,
-  {
-    label: string;
-    gradient: string;
-    soft: string;
-    focus: string;
-  }
-> = {
-  energetic: {
-    label: "Energetic",
-    gradient: "from-orange-400 to-rose-500",
-    soft: "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100",
-    focus: "focus-visible:ring-orange-200",
-  },
-  calm: {
-    label: "Calm",
-    gradient: "from-sky-400 to-cyan-500",
-    soft: "border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100",
-    focus: "focus-visible:ring-sky-200",
-  },
-  focused: {
-    label: "Focused",
-    gradient: "from-violet-400 to-indigo-500",
-    soft: "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
-    focus: "focus-visible:ring-violet-200",
-  },
-  stressed: {
-    label: "Stressed",
-    gradient: "from-rose-500 to-pink-600",
-    soft: "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100",
-    focus: "focus-visible:ring-rose-200",
-  },
-  creative: {
-    label: "Creative",
-    gradient: "from-pink-400 to-fuchsia-500",
-    soft: "border-pink-200 bg-pink-50 text-pink-700 hover:bg-pink-100",
-    focus: "focus-visible:ring-pink-200",
-  },
-  analytical: {
-    label: "Analytical",
-    gradient: "from-emerald-400 to-teal-500",
-    soft: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
-    focus: "focus-visible:ring-emerald-200",
-  },
-};
-
-const moodOptions: TaskMood[] = ["energetic", "calm", "focused", "stressed", "creative", "analytical"];
 
 const initialManualState: ManualTaskFormState = {
   title: "",
@@ -105,7 +46,7 @@ const initialManualState: ManualTaskFormState = {
   dueDate: "",
   urgency: "medium",
   energy: "medium",
-  moods: ["focused"],
+  moods: [DEFAULT_MOOD],
   teamMembers: [],
   createdAt: "",
   updatedAt: "",
@@ -116,24 +57,46 @@ export function CreateTaskDialog({
   triggerClassName,
   onManualCreate,
   isPersonalBoard = false,
+  teamMembers = [],
 }: CreateTaskDialogProps) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<CreateTaskMode>("manual");
   const [naturalDraft, setNaturalDraft] = useState("");
   const [manualState, setManualState] = useState<ManualTaskFormState>(initialManualState);
-  const [memberName, setMemberName] = useState("");
-  const [memberId, setMemberId] = useState("");
-  const [memberInitials, setMemberInitials] = useState("");
+  const [isGenerating, startGenerating] = useTransition();
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [teamMemberSelectValue, setTeamMemberSelectValue] = useState("placeholder");
+
+  const teamMemberPayload = useMemo(
+    () =>
+      teamMembers.map((member) => ({
+        id: member.id,
+        name: member.name,
+        roles: Array.isArray(member.roles) ? member.roles : [],
+        email: member.email ?? undefined,
+        tag: member.tag ?? undefined,
+      })),
+    [teamMembers],
+  );
 
   const manualIsSubmittable = useMemo(() => manualState.title.trim().length > 0, [manualState.title]);
+  const naturalIsSubmittable = useMemo(() => naturalDraft.trim().length >= 8, [naturalDraft]);
   const showTeamMembers = !isPersonalBoard;
+  const showAssigneeField = !isPersonalBoard;
+  const hasTeamMembers = teamMemberPayload.length > 0;
+  const assigneeSelectValue = manualState.assigneeId.trim().length ? manualState.assigneeId : "unassigned";
+
+  useEffect(() => {
+    if (isPersonalBoard) {
+      setManualState((prev) => (prev.assigneeId ? { ...prev, assigneeId: "" } : prev));
+    }
+  }, [isPersonalBoard]);
 
   function resetForm() {
     setManualState(initialManualState);
     setNaturalDraft("");
-    setMemberName("");
-    setMemberId("");
-    setMemberInitials("");
+    setTeamMemberSelectValue("placeholder");
+    setGenerationError(null);
     setMode("manual");
   }
 
@@ -154,25 +117,6 @@ export function CreateTaskDialog({
     });
   }
 
-  function addTeamMember() {
-    const name = memberName.trim();
-    if (!name) return;
-    setManualState((prev) => ({
-      ...prev,
-      teamMembers: [
-        ...prev.teamMembers,
-        {
-          name,
-          id: memberId.trim() || undefined,
-          initials: memberInitials.trim() || undefined,
-        },
-      ],
-    }));
-    setMemberName("");
-    setMemberId("");
-    setMemberInitials("");
-  }
-
   function removeTeamMember(index: number) {
     setManualState((prev) => ({
       ...prev,
@@ -180,6 +124,80 @@ export function CreateTaskDialog({
     }));
   }
 
+  const availableTeamMembers = useMemo(
+    () =>
+      teamMemberPayload.filter(
+        (member) => !manualState.teamMembers.some((entry) => entry.id && entry.id === member.id),
+      ),
+    [manualState.teamMembers, teamMemberPayload],
+  );
+
+  function initialsFromName(name: string) {
+    const parts = name.split(" ").filter(Boolean);
+    if (parts.length === 0) return undefined;
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+
+  function handleTeamMemberSelect(value: string) {
+    if (value === "placeholder") {
+      setTeamMemberSelectValue("placeholder");
+      return;
+    }
+    const selected = teamMemberPayload.find((member) => member.id === value);
+    if (!selected) return;
+    setManualState((prev) => {
+      if (prev.teamMembers.some((member) => member.id === selected.id)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        teamMembers: [
+          ...prev.teamMembers,
+          {
+            name: selected.name,
+            id: selected.id,
+            initials: initialsFromName(selected.name),
+          },
+        ],
+      };
+    });
+    setTeamMemberSelectValue("placeholder");
+  }
+
+  function handleNaturalGenerate() {
+    if (!naturalIsSubmittable) {
+      return;
+    }
+
+    startGenerating(() => {
+      setGenerationError(null);
+      const prompt = naturalDraft.trim();
+
+      void (async () => {
+        try {
+          const generatedDraft = await generateTaskDraft({
+            prompt,
+            isPersonalBoard,
+            teamMembers: teamMemberPayload,
+          });
+
+          if (onManualCreate) {
+            await onManualCreate(generatedDraft);
+            setOpen(false);
+            resetForm();
+          } else {
+            setManualState(generatedDraft);
+            setMode("manual");
+            setNaturalDraft("");
+          }
+        } catch (error) {
+          console.error("create-task-dialog:natural", error);
+          setGenerationError(error instanceof Error ? error.message : "Failed to generate task draft.");
+        }
+      })();
+    });
+  }
   async function handleManualSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!manualIsSubmittable) {
@@ -231,34 +249,49 @@ export function CreateTaskDialog({
               <CardHeader className="pb-2">
                 <CardTitle className="text-base font-semibold text-slate-900">Natural language</CardTitle>
                 <p className="text-sm text-slate-500">
-                  Describe the task in plain language. We'll translate this into structured work soon.
+                  Describe the task in plain language. We'll translate this into structured work automatically.
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Textarea
-                  value={naturalDraft}
-                  onChange={(event) => setNaturalDraft(event.target.value)}
-                  placeholder="e.g., Capture the beta feedback and assign follow-ups by Thursday."
-                  className="min-h-[160px] border border-slate-200 text-slate-900 shadow-inner"
-                />
-                <div className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
-                  <Sparkles className="mt-0.5 h-4 w-4 text-violet-500" />
-                  <div className="space-y-1">
-                    <div className="font-medium text-slate-800">AI assist is in preview</div>
-                    <p>Share context now while automatic task drafts finish training.</p>
+                  <Textarea
+                    value={naturalDraft}
+                    onChange={(event) => setNaturalDraft(event.target.value)}
+                    placeholder="e.g., Capture the beta feedback and assign follow-ups by Thursday."
+                    className="min-h-[160px] border border-slate-200 text-slate-900 shadow-inner"
+                  />
+                  <div className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
+                    <Sparkles className="mt-0.5 h-4 w-4 text-violet-500" />
+                    <div className="space-y-1">
+                      <div className="font-medium text-slate-800">Describe what needs to happen</div>
+                      <p>Mention deliverables, timing, collaborators, and any mood cues for the assignee.</p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                  <span className="inline-flex items-center gap-1">
-                    <AlertCircle className="h-3.5 w-3.5 text-violet-500" />
-                    Generation is coming soon.
-                  </span>
-                  <Button type="button" variant="secondary" disabled>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Generate task (soon)
-                  </Button>
-                </div>
-              </CardContent>
+                  {generationError ? (
+                    <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50/90 p-3 text-sm text-rose-600">
+                      <AlertCircle className="mt-0.5 h-4 w-4" />
+                      <div>{generationError}</div>
+                    </div>
+                  ) : null}
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-1 text-left">
+                      <AlertCircle className="h-3.5 w-3.5 text-violet-500" />
+                      We will structure the task for you. Include due dates or teammates when you know them.
+                    </span>
+                    <Button
+                      type="button"
+                      onClick={handleNaturalGenerate}
+                      disabled={!naturalIsSubmittable || isGenerating}
+                      className="whitespace-nowrap"
+                    >
+                      {isGenerating ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="mr-2 h-4 w-4" />
+                      )}
+                      {isGenerating ? "Generating..." : "Generate task"}
+                    </Button>
+                  </div>
+                </CardContent>
             </Card>
           </TabsContent>
 
@@ -306,29 +339,63 @@ export function CreateTaskDialog({
                       className="min-h-[140px] border border-slate-200 text-slate-900"
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="task-due-date" className="text-sm font-medium text-slate-700">
-                      Due date
-                    </Label>
-                    <Input
-                      id="task-due-date"
-                      type="date"
-                      value={manualState.dueDate}
-                      onChange={(event) =>
-                        setManualState((prev) => ({
-                          ...prev,
-                          dueDate: event.target.value,
-                        }))
-                      }
-                      className="border-slate-200 text-slate-700"
-                    />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-2">
+                      <Label htmlFor="task-due-date" className="text-sm font-medium text-slate-700">
+                        Due date
+                      </Label>
+                      <Input
+                        id="task-due-date"
+                        type="date"
+                        value={manualState.dueDate}
+                        onChange={(event) =>
+                          setManualState((prev) => ({
+                            ...prev,
+                            dueDate: event.target.value,
+                          }))
+                        }
+                        className="border-slate-200 text-slate-700"
+                      />
+                    </div>
+                    {showAssigneeField ? (
+                      <div className="grid gap-2">
+                        <Label className="text-sm font-medium text-slate-700">Assignee</Label>
+                        <Select
+                          value={assigneeSelectValue}
+                          onValueChange={(value) =>
+                            setManualState((prev) => ({
+                              ...prev,
+                              assigneeId: value === "unassigned" ? "" : value,
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="border-slate-200">
+                            <SelectValue placeholder="Choose a teammate" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unassigned">Unassigned</SelectItem>
+                            {teamMemberPayload.map((member) => (
+                              <SelectItem key={member.id} value={member.id}>
+                                {member.name}
+                                {member.roles.length ? ` — ${member.roles.join(", ")}` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {!hasTeamMembers && (
+                          <p className="text-xs text-slate-400">
+                            Add teammates to the team in order to assign tasks.
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="space-y-3">
                     <Label className="text-sm font-medium text-slate-700">Mood signals</Label>
                     <div className="flex flex-wrap gap-2">
-                      {moodOptions.map((mood) => {
+                      {MOOD_ORDER.map((mood) => {
                         const active = manualState.moods.includes(mood);
-                        const { gradient, label, soft, focus } = moodStyles[mood];
+                        const config = MOOD_CONFIG[mood];
                         return (
                           <button
                             key={mood}
@@ -337,13 +404,13 @@ export function CreateTaskDialog({
                             className={cn(
                               "rounded-full border px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none",
                               "focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-                              focus,
+                              config.focusRing,
                               active
-                                ? cn("bg-gradient-to-r text-white shadow-md border-transparent", gradient)
-                                : cn(soft, "focus-visible:ring-offset-white"),
+                                ? cn("bg-gradient-to-r text-white shadow-md border-transparent", config.gradient)
+                                : cn(config.soft, "focus-visible:ring-offset-white"),
                             )}
                           >
-                            {label}
+                            {config.label}
                           </button>
                         );
                       })}
@@ -358,35 +425,26 @@ export function CreateTaskDialog({
                           optional
                         </Badge>
                       </div>
-                      <div className="grid gap-2 md:grid-cols-[2fr_2fr_minmax(0,1fr)]">
-                        <Input
-                          value={memberName}
-                          onChange={(event) => setMemberName(event.target.value)}
-                          placeholder="Display name"
-                          className="border-slate-200"
-                        />
-                        <Input
-                          value={memberId}
-                          onChange={(event) => setMemberId(event.target.value)}
-                          placeholder="Member id / email"
-                          className="border-slate-200"
-                        />
-                        <div className="flex gap-2">
-                          <Input
-                            value={memberInitials}
-                            onChange={(event) => setMemberInitials(event.target.value)}
-                            placeholder="Initials"
-                            className="border-slate-200 max-w-[96px]"
-                          />
-                          <Button type="button" variant="outline" onClick={addTeamMember} className="whitespace-nowrap">
-                            Add
-                          </Button>
-                        </div>
-                      </div>
+                      <Select value={teamMemberSelectValue} onValueChange={handleTeamMemberSelect}>
+                        <SelectTrigger className="border-slate-200">
+                          <SelectValue placeholder={availableTeamMembers.length ? "Add teammate" : "No teammates available"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="placeholder" disabled>
+                            {availableTeamMembers.length ? "Choose a teammate" : "No teammates available"}
+                          </SelectItem>
+                          {availableTeamMembers.map((member) => (
+                            <SelectItem key={member.id} value={member.id}>
+                              {member.name}
+                              {member.roles.length ? ` — ${member.roles.join(", ")}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <div className="flex flex-wrap gap-2">
                         {manualState.teamMembers.map((member, index) => (
                           <Badge
-                            key={`${member.name}-${index}`}
+                            key={`${member.id ?? member.name}-${index}`}
                             variant="secondary"
                             className="flex cursor-pointer items-center gap-2 border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-100"
                             onClick={() => removeTeamMember(index)}

@@ -8,7 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { MoodboardTask, TaskEnergy, TaskMember, TaskMood, TaskUrgency } from "@/lib/types";
+import type {
+  MoodboardTask,
+  TaskEnergy,
+  TaskMember,
+  TaskMood,
+  TaskUrgency,
+  TeamMemberContext,
+} from "@/lib/types";
+import { DEFAULT_MOOD, MOOD_CONFIG, MOOD_ORDER } from "@/lib/moods";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { AlertCircle, Save, UserPlus, Users } from "lucide-react";
@@ -37,28 +45,11 @@ export interface TaskEditorDialogProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (task: MoodboardTask) => Promise<void> | void;
   isPersonalBoard?: boolean;
-}
-
-interface MemberDraft {
-  name: string;
-  id: string;
-  initials: string;
+  teamMembers?: TeamMemberContext[];
 }
 
 const urgencyOptions: TaskUrgency[] = ["low", "medium", "urgent", "critical"];
 const energyOptions: TaskEnergy[] = ["low", "medium", "high"];
-const moodOptions: TaskMood[] = ["energetic", "calm", "focused", "stressed", "creative", "analytical"];
-
-function normalizeMemberDraft(draft: MemberDraft): TaskMember | null {
-  const name = draft.name.trim();
-  if (!name) return null;
-  const normalizedId = draft.id.trim();
-  return {
-    name,
-    id: normalizedId || name,
-    initials: draft.initials.trim() || undefined,
-  };
-}
 
 function toDateInputValue(value: string | undefined) {
   if (!value) return "";
@@ -69,19 +60,66 @@ function toDateInputValue(value: string | undefined) {
   return format(parsed, "yyyy-MM-dd");
 }
 
-export function TaskEditorDialog({ open, task, onOpenChange, onSubmit, isPersonalBoard = false }: TaskEditorDialogProps) {
+function initialsFromName(name: string) {
+  const parts = name.split(" ").filter(Boolean);
+  if (parts.length === 0) return undefined;
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+export function TaskEditorDialog({
+  open,
+  task,
+  onOpenChange,
+  onSubmit,
+  isPersonalBoard = false,
+  teamMembers = [],
+}: TaskEditorDialogProps) {
   const [draft, setDraft] = useState<EditableTask | null>(null);
-  const [memberDraft, setMemberDraft] = useState<MemberDraft>({ name: "", id: "", initials: "" });
+  const [teamMemberSelectValue, setTeamMemberSelectValue] = useState("placeholder");
   const [error, setError] = useState<string | null>(null);
+
+  const rosterOptions = useMemo(
+    () =>
+      teamMembers.map((member) => ({
+        id: member.id,
+        name: member.name,
+        roles: Array.isArray(member.roles) ? member.roles : [],
+        tag: member.tag ?? undefined,
+      })),
+    [teamMembers],
+  );
+  const assigneeOptions = rosterOptions;
+  const hasAssigneeOptions = assigneeOptions.length > 0;
+
+  const availableTeamMembers = useMemo(() => {
+    if (!draft) return rosterOptions;
+    return rosterOptions.filter((member) =>
+      member.id ? !draft.teamMembers.some((existing) => existing.id === member.id) : true,
+    );
+  }, [draft, rosterOptions]);
 
   const updateDraft = useCallback((updater: (current: EditableTask) => EditableTask) => {
     setDraft((prev) => (prev ? updater(prev) : prev));
   }, []);
 
   useEffect(() => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      if (isPersonalBoard) {
+        return prev.assigneeId ? { ...prev, assigneeId: "" } : prev;
+      }
+      if (prev.assigneeId && !assigneeOptions.some((option) => option.id === prev.assigneeId)) {
+        return { ...prev, assigneeId: "" };
+      }
+      return prev;
+    });
+  }, [assigneeOptions, isPersonalBoard]);
+
+  useEffect(() => {
     if (!open) {
       setDraft(null);
-      setMemberDraft({ name: "", id: "", initials: "" });
+      setTeamMemberSelectValue("placeholder");
       setError(null);
       return;
     }
@@ -93,7 +131,7 @@ export function TaskEditorDialog({ open, task, onOpenChange, onSubmit, isPersona
         dueDate: task.dueDate ?? "",
         assigneeId: task.assigneeId ?? "",
         priority: task.priority ?? "med",
-        moods: task.moods?.length ? [...task.moods] : ["focused"],
+        moods: task.moods?.length ? [...task.moods] : [DEFAULT_MOOD],
         urgency: task.urgency ?? "medium",
         energy: task.energy ?? "medium",
         teamMembers: task.teamMembers ? [...task.teamMembers] : [],
@@ -103,7 +141,7 @@ export function TaskEditorDialog({ open, task, onOpenChange, onSubmit, isPersona
         createdAt: task.createdAt,
         updatedAt: task.updatedAt,
       });
-      setMemberDraft({ name: "", id: "", initials: "" });
+      setTeamMemberSelectValue("placeholder");
       setError(null);
     }
   }, [open, task]);
@@ -131,6 +169,9 @@ export function TaskEditorDialog({ open, task, onOpenChange, onSubmit, isPersona
 
   const currentTask: MoodboardTask = task;
   const currentDraft: EditableTask = draft;
+  const assigneeSelectValue = currentDraft.assigneeId?.trim()
+    ? currentDraft.assigneeId
+    : "unassigned";
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -145,7 +186,7 @@ export function TaskEditorDialog({ open, task, onOpenChange, onSubmit, isPersona
       title: currentDraft.title.trim(),
       description: currentDraft.description?.trim() ?? "",
       dueDate: currentDraft.dueDate ? new Date(currentDraft.dueDate).toISOString() : undefined,
-      assigneeId: currentDraft.assigneeId?.trim() || null,
+      assigneeId: isPersonalBoard ? null : currentDraft.assigneeId?.trim() || null,
       priority: currentDraft.priority,
       moods: currentDraft.moods,
       urgency: currentDraft.urgency,
@@ -166,18 +207,31 @@ export function TaskEditorDialog({ open, task, onOpenChange, onSubmit, isPersona
       });
   }
 
-  function addMember() {
-    const member = normalizeMemberDraft(memberDraft);
-    if (!member) {
-      setError("Enter a team member name to add");
+  function handleTeamMemberSelect(value: string) {
+    if (value === "placeholder") {
+      setTeamMemberSelectValue("placeholder");
       return;
     }
-    updateDraft((prev) => ({
-      ...prev,
-      teamMembers: [...prev.teamMembers, member],
-    }));
-    setMemberDraft({ name: "", id: "", initials: "" });
-    setError(null);
+    const selected = rosterOptions.find((member) => member.id === value);
+    if (!selected) return;
+
+    updateDraft((prev) => {
+      if (prev.teamMembers.some((member) => member.id === selected.id)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        teamMembers: [
+          ...prev.teamMembers,
+          {
+            name: selected.name,
+            id: selected.id,
+            initials: initialsFromName(selected.name),
+          },
+        ],
+      };
+    });
+    setTeamMemberSelectValue("placeholder");
   }
 
   function removeMember(index: number) {
@@ -230,11 +284,11 @@ export function TaskEditorDialog({ open, task, onOpenChange, onSubmit, isPersona
               value={currentDraft.description ?? ""}
               onChange={(event) => updateDraft((prev) => ({ ...prev, description: event.target.value }))}
               placeholder="Add helpful context"
-              className="min-h-[120px] border-slate-200"
+              className="min-h-[120px] border-slate-200 text-slate-900"
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className={cn("grid gap-4", !isPersonalBoard && "sm:grid-cols-2")}>
             <div className="grid gap-2">
               <Label htmlFor="task-due" className="text-sm font-medium text-slate-700">
                 Due date
@@ -249,21 +303,39 @@ export function TaskEditorDialog({ open, task, onOpenChange, onSubmit, isPersona
                     dueDate: event.target.value,
                   }))
                 }
-                className="border-slate-200"
+                className="border-slate-200 text-slate-900"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="task-assignee" className="text-sm font-medium text-slate-700">
-                Assignee
-              </Label>
-              <Input
-                id="task-assignee"
-                value={currentDraft.assigneeId ?? ""}
-                onChange={(event) => updateDraft((prev) => ({ ...prev, assigneeId: event.target.value }))}
-                placeholder="user@example.com"
-                className="border-slate-200"
-              />
-            </div>
+            {!isPersonalBoard ? (
+              <div className="grid gap-2">
+                <Label className="text-sm font-medium text-slate-700">Assignee</Label>
+                <Select
+                  value={assigneeSelectValue}
+                  onValueChange={(value) =>
+                    updateDraft((prev) => ({
+                      ...prev,
+                      assigneeId: value === "unassigned" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="border-slate-200">
+                    <SelectValue placeholder="Choose a teammate" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {assigneeOptions.map((member) => (
+                      <SelectItem key={member.id} value={member.id}>
+                        {member.name}
+                        {member.roles.length ? ` — ${member.roles.join(", ")}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!hasAssigneeOptions && (
+                  <p className="text-xs text-slate-400">Add teammates in the team settings to assign this task.</p>
+                )}
+              </div>
+            ) : null}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
@@ -330,21 +402,24 @@ export function TaskEditorDialog({ open, task, onOpenChange, onSubmit, isPersona
           <div className="space-y-3">
             <Label className="text-sm font-medium text-slate-700">Mood signals</Label>
             <div className="flex flex-wrap gap-2">
-              {moodOptions.map((mood) => {
+              {MOOD_ORDER.map((mood) => {
                 const active = currentDraft.moods.includes(mood);
+                const config = MOOD_CONFIG[mood];
                 return (
                   <button
                     key={mood}
                     type="button"
                     onClick={() => toggleMood(mood)}
                     className={cn(
-                      "rounded-full border px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+                      "rounded-full border px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none",
+                      "focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+                      config.focusRing,
                       active
-                        ? "bg-slate-900 text-white shadow"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
+                        ? cn("bg-gradient-to-r text-white shadow-md border-transparent", config.gradient)
+                        : cn(config.soft, "focus-visible:ring-offset-white"),
                     )}
                   >
-                    {mood}
+                    {config.label}
                   </button>
                 );
               })}
@@ -357,37 +432,44 @@ export function TaskEditorDialog({ open, task, onOpenChange, onSubmit, isPersona
                 <Users className="h-4 w-4" />
                 Assigned members
               </div>
-              <div className="grid gap-3 md:grid-cols-[2fr_2fr_minmax(0,1fr)]">
-                <Input
-                  value={memberDraft.name}
-                  onChange={(event) => setMemberDraft((prev) => ({ ...prev, name: event.target.value }))}
-                  placeholder="Display name"
-                  className="border-slate-200"
-                />
-                <Input
-                  value={memberDraft.id}
-                  onChange={(event) => setMemberDraft((prev) => ({ ...prev, id: event.target.value }))}
-                  placeholder="Member id"
-                  className="border-slate-200"
-                />
-                <div className="flex gap-2">
-                  <Input
-                    value={memberDraft.initials}
-                    onChange={(event) => setMemberDraft((prev) => ({ ...prev, initials: event.target.value }))}
-                    placeholder="Initials"
-                    className="max-w-[96px] border-slate-200"
-                  />
-                  <Button type="button" variant="outline" onClick={addMember} className="whitespace-nowrap">
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Add
-                  </Button>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium text-slate-700">Add teammate</Label>
+                  <Badge variant="outline" className="flex items-center gap-1 border-violet-200 text-violet-600">
+                    <UserPlus className="h-3.5 w-3.5" />
+                    optional
+                  </Badge>
                 </div>
+                <Select
+                  value={teamMemberSelectValue}
+                  onValueChange={handleTeamMemberSelect}
+                  disabled={!availableTeamMembers.length}
+                >
+                  <SelectTrigger className="border-slate-200 bg-white text-slate-900">
+                    <SelectValue
+                      placeholder={
+                        availableTeamMembers.length ? "Add teammate" : "No teammates available"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="placeholder" disabled>
+                      {availableTeamMembers.length ? "Choose a teammate" : "No teammates available"}
+                    </SelectItem>
+                    {availableTeamMembers.map((member) => (
+                      <SelectItem key={member.id} value={member.id}>
+                        {member.name}
+                        {member.roles.length ? ` — ${member.roles.join(", ")}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex flex-wrap gap-2">
                 {currentDraft.teamMembers.length ? (
                   currentDraft.teamMembers.map((member, index) => (
                     <Badge
-                      key={`${member.name}-${index}`}
+                      key={`${member.id ?? member.name}-${index}`}
                       variant="secondary"
                       className="flex cursor-pointer items-center gap-2 border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-100"
                       onClick={() => removeMember(index)}
@@ -424,3 +506,5 @@ export function TaskEditorDialog({ open, task, onOpenChange, onSubmit, isPersona
     </Dialog>
   );
 }
+
+

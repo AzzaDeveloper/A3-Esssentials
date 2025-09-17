@@ -115,6 +115,16 @@ export interface TaskMember {
   name: string;
   initials?: string;
   avatarUrl?: string | null;
+  email?: string | null;
+  roles?: string[];
+}
+
+export interface TeamMemberContext {
+  id: string;
+  name: string;
+  roles: string[];
+  email?: string | null;
+  tag?: string | null;
 }
 
 export interface Task {
@@ -135,6 +145,22 @@ export interface Task {
   updatedAt?: string;
 }
 
+export interface TaskDraft {
+  title: string;
+  description: string;
+  tags: string[];
+  priority: "low" | "med" | "high";
+  assigneeId: string;
+  dueDate: string;
+  urgency: TaskUrgency;
+  energy: TaskEnergy;
+  moods: TaskMood[];
+  teamMembers: Array<
+    Pick<TaskMember, "name"> & Partial<Pick<TaskMember, "id" | "initials">>
+  >;
+  createdAt: string;
+  updatedAt: string;
+}
 export interface AssignmentScore {
   fit: number;
   load: number;

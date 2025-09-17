@@ -1,11 +1,12 @@
 import type { MoodboardTask, TaskEnergy, TaskMember, TaskMood, TaskUrgency } from "@/lib/types";
-import { BOARD_TASK_ALLOWED_MOODS, BOARD_TASK_FALLBACK_MOOD } from "@/lib/moodboard-task";
+import { BOARD_TASK_FALLBACK_MOOD } from "@/lib/moodboard-task";
+import { MOOD_SET } from "@/lib/moods";
 
 export type TaskDraftTeamMember =
   | (Pick<TaskMember, "name"> & Partial<Pick<TaskMember, "id" | "initials">>)
   | { name?: string | null; id?: string | null; initials?: string | null };
 
-const ALLOWED_MOOD_SET = new Set(BOARD_TASK_ALLOWED_MOODS);
+const ALLOWED_MOOD_SET = MOOD_SET;
 const ALLOWED_PRIORITIES = new Set<NonNullable<MoodboardTask["priority"]>>(["low", "med", "high"]);
 const ALLOWED_URGENCIES = new Set<MoodboardTask["urgency"]>(["low", "medium", "urgent", "critical"]);
 const ALLOWED_ENERGIES = new Set<MoodboardTask["energy"]>(["low", "medium", "high"]);
@@ -80,3 +81,4 @@ export function normalizeOptionalDate(value: string): string | undefined {
   if (Number.isNaN(parsed.getTime())) return undefined;
   return parsed.toISOString();
 }
+

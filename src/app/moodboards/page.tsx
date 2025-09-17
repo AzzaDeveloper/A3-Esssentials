@@ -5,13 +5,15 @@ import Link from "next/link";
 import { listMoodboardsForUser } from "@/lib/moodboards";
 import { currentUserServer } from "@/lib/auth-server";
 import { MoodboardsView } from "@/components/moodboard/moodboards-view";
+import { ProfileMenu } from "@/components/profile-menu";
 
 
 export default async function MoodboardsPage() {
   const me = await currentUserServer();
   const boards: Moodboard[] = me ? await listMoodboardsForUser(me.uid) : [];
   return (
-    <div className="px-4 md:px-8 lg:px-12 py-8 max-w-7xl mx-auto">
+    <div className="relative px-4 md:px-8 lg:px-12 py-8 max-w-7xl mx-auto">
+      <ProfileMenu />
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold">Moodboards</h1>

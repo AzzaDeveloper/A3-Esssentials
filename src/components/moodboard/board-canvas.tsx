@@ -14,8 +14,12 @@ import { BoardTaskElement } from "@/components/moodboard/board-task-element";
 import { Button } from "@/components/ui/button";
 import { CreateTaskDialog, type ManualTaskFormState } from "@/components/tasks/create-task-dialog";
 import { TaskEditorDialog } from "@/components/moodboard/task-editor-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 import { firebase } from "@/lib/firebase";
-import type { MoodboardElement, MoodboardTask } from "@/lib/types";
+import { useAuth } from "@/hooks/useAuth";
+import type { MoodboardElement, MoodboardTask, TeamMemberContext } from "@/lib/types";
 import {
   BOARD_TASK_DEFAULT_HEIGHT,
   BOARD_TASK_DEFAULT_WIDTH,
@@ -36,10 +40,33 @@ import {
   normalizeUrgency,
 } from "@/lib/moodboard-normalize";
 import { onValue, push, ref, remove, serverTimestamp, set, update } from "firebase/database";
+import { collection, doc, getDoc, getDocs, limit, query, where, type Firestore } from "firebase/firestore";
 
 interface BoardCanvasProps {
   boardId: string;
   isPersonal?: boolean;
+  teamId?: string | null;
+}
+
+interface TeamMemberOption extends TeamMemberContext {
+  displayName: string;
+}
+
+function normalizeRoleMap(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== "object") return {};
+  const result: Record<string, string[]> = {};
+  for (const [memberId, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!memberId) continue;
+    if (Array.isArray(raw)) {
+      const roles = raw.filter((role) => typeof role === "string" && role.trim().length > 0);
+      if (roles.length) result[memberId] = roles as string[];
+      continue;
+    }
+    if (typeof raw === "string" && raw.trim().length) {
+      result[memberId] = [raw.trim()];
+    }
+  }
+  return result;
 }
 
 function toElementPosition(world: { x: number; y: number }) {
@@ -49,8 +76,9 @@ function toElementPosition(world: { x: number; y: number }) {
   };
 }
 
-export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
+export function BoardCanvas({ boardId, isPersonal = false, teamId = null }: BoardCanvasProps) {
   const { rtdb } = firebase();
+  const { user } = useAuth();
   const [elements, setElements] = useState<MoodboardElement[]>([]);
   const [isOffline, setIsOffline] = useState(false);
 
@@ -67,6 +95,8 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
   const resizeStartRef = useRef({ x: 0, y: 0 });
   const sizeStartRef = useRef({ w: BOARD_TASK_DEFAULT_WIDTH, h: BOARD_TASK_DEFAULT_HEIGHT });
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [teamMembers, setTeamMembers] = useState<TeamMemberOption[]>([]);
+  const [isRosterOpen, setIsRosterOpen] = useState(false);
 
   useEffect(() => {
     const elementsRef = ref(rtdb, `moodboards/${boardId}/elements`);
@@ -121,6 +151,94 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
 
     return () => unsubscribe();
   }, [boardId, rtdb]);
+
+  useEffect(() => {
+    if (isPersonal || !teamId) {
+      setTeamMembers([]);
+      return;
+    }
+
+    let cancelled = false;
+    const { db } = firebase();
+
+    const load = async () => {
+      try {
+        const teamSnap = await getDoc(doc(db, "teams", teamId));
+        if (!teamSnap.exists()) {
+          if (!cancelled) setTeamMembers([]);
+          return;
+        }
+
+        const teamData = teamSnap.data() as any;
+        const memberIds: string[] = Array.isArray(teamData?.members) ? teamData.members : [];
+        if (!memberIds.length) {
+          if (!cancelled) setTeamMembers([]);
+          return;
+        }
+
+        const roleMap = normalizeRoleMap(teamData?.role);
+        const teamRoleMap = normalizeRoleMap(teamData?.teamRole);
+        const mergedRoles: Record<string, string[]> = {};
+        for (const [memberId, roles] of Object.entries(roleMap)) {
+          if (!Array.isArray(roles)) continue;
+          mergedRoles[memberId] = Array.from(new Set([...(mergedRoles[memberId] ?? []), ...roles]));
+        }
+        for (const [memberId, roles] of Object.entries(teamRoleMap)) {
+          if (!Array.isArray(roles)) continue;
+          mergedRoles[memberId] = Array.from(new Set([...(mergedRoles[memberId] ?? []), ...roles]));
+        }
+
+        const memberRows = await Promise.all(
+          memberIds.map(async (memberId) => {
+            try {
+              const userSnap = await getDoc(doc(db, "users", memberId));
+              const userData: any = userSnap.exists() ? userSnap.data() : {};
+              const userTag = await fetchUserTag(db, memberId);
+              const displayName = String(
+                userData.displayName ||
+                  userData.name ||
+                  userData.email ||
+                  userData.handle ||
+                  "Member",
+              );
+              return {
+                id: memberId,
+                name: displayName,
+                displayName,
+                roles: mergedRoles[memberId] ?? [],
+                email: typeof userData.email === "string" ? userData.email : undefined,
+                tag: userTag,
+              } satisfies TeamMemberOption;
+            } catch (error) {
+              console.error("board-canvas:loadMember", error);
+              return {
+                id: memberId,
+                name: memberId,
+                displayName: memberId,
+                roles: mergedRoles[memberId] ?? [],
+                email: undefined,
+                tag: undefined,
+              } satisfies TeamMemberOption;
+            }
+          }),
+        );
+
+        if (!cancelled) {
+          const sorted = memberRows.sort((a, b) => a.displayName.localeCompare(b.displayName));
+          setTeamMembers(sorted);
+        }
+      } catch (error) {
+        console.error("board-canvas:loadTeamMembers", error);
+        if (!cancelled) setTeamMembers([]);
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isPersonal, teamId]);
 
   const resolveWorldPosition = useCallback(
     (center?: { x: number; y: number }) => {
@@ -314,6 +432,32 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
     [boardId, resolveWorldPosition, rtdb],
   );
 
+    const sendAssigneeNotification = useCallback(
+    async (task: MoodboardTask) => {
+      const assigneeId = task.assigneeId;
+      if (!assigneeId) return;
+      const viewerId = user?.uid;
+      if (viewerId && assigneeId === viewerId) return;
+
+      try {
+        await fetch("/api/tasks/notify-assignee", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            assigneeId,
+            taskTitle: task.title,
+            taskId: task.id,
+            boardId,
+            teamId: teamId ?? undefined,
+          }),
+        });
+      } catch (error) {
+        console.error("board-canvas:notifyAssignee", error);
+      }
+    },
+    [boardId, teamId, user?.uid],
+  );
+
   const handleManualCreate = useCallback(
     async (draft: ManualTaskFormState) => {
       const world = resolveWorldPosition();
@@ -356,11 +500,14 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
 
       try {
         await set(newRef, payload);
+        if (task.assigneeId) {
+          void sendAssigneeNotification(task);
+        }
       } catch (error) {
         console.error("board-canvas:onManualCreate", error);
       }
     },
-    [boardId, resolveWorldPosition, rtdb],
+    [boardId, resolveWorldPosition, rtdb, sendAssigneeNotification],
   );
 
   const removeElement = useCallback(
@@ -390,6 +537,26 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
     () => (editingId ? elements.find((entry) => entry.id === editingId) ?? null : null),
     [editingId, elements],
   );
+
+  const teamMemberContext = useMemo<TeamMemberContext[]>(
+    () =>
+      teamMembers.map(({ id, name, roles, email, tag }) => ({
+        id,
+        name,
+        roles,
+        email,
+        tag: tag ?? undefined,
+      })),
+    [teamMembers],
+  );
+  const isTeamBoard = !isPersonal && !!teamId;
+  const hasRoster = teamMemberContext.length > 0;
+
+  useEffect(() => {
+    if (!isTeamBoard && isRosterOpen) {
+      setIsRosterOpen(false);
+    }
+  }, [isTeamBoard, isRosterOpen]);
 
   const handleTaskUpdate = useCallback(
     async (updatedTask: MoodboardTask) => {
@@ -424,21 +591,44 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
       <div className="absolute left-3 top-3 z-20 flex items-center gap-2">
         <CreateTaskDialog
           triggerLabel="Add Task"
-          triggerClassName="border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
+          triggerClassName="border border-slate-300 bg-slate-900 text-white shadow-sm hover:bg-slate-800"
           isPersonalBoard={isPersonal}
           onManualCreate={handleManualCreate}
+          teamMembers={teamMemberContext}
         />
         <Button
           variant="outline"
-          className="border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+          className="border border-slate-300 bg-slate-100 text-slate-900 shadow-sm hover:bg-slate-200"
           onClick={() => addTask()}
         >
           Quick Drop
         </Button>
+        {isTeamBoard && teamId ? (
+          <Button
+            variant="outline"
+            className="border border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-100"
+            asChild
+          >
+            <Link href={`/teams/${teamId}`}>View Team</Link>
+          </Button>
+        ) : null}
         <div className="rounded-md border border-slate-200 bg-white/90 px-2 py-1 text-xs font-medium text-slate-600 shadow-sm">
           {Math.round(scale * 100)}%
         </div>
       </div>
+
+      {isTeamBoard ? (
+        <div className="absolute right-3 top-16 z-30 flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="border border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-100"
+            onClick={() => setIsRosterOpen(true)}
+            disabled={!hasRoster}
+          >
+            Team roster
+          </Button>
+        </div>
+      ) : null}
 
       {isOffline && (
         <div className="absolute left-3 top-14 z-30 max-w-sm rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 shadow-sm">
@@ -491,9 +681,90 @@ export function BoardCanvas({ boardId, isPersonal = false }: BoardCanvasProps) {
         }}
         onSubmit={handleTaskUpdate}
         isPersonalBoard={isPersonal}
+        teamMembers={teamMemberContext}
       />
+      {isTeamBoard ? (
+        <Dialog open={isRosterOpen} onOpenChange={setIsRosterOpen}>
+          <DialogContent className="sm:max-w-md bg-white text-slate-900">
+            <DialogHeader>
+              <DialogTitle className="text-slate-900">Team members</DialogTitle>
+              <DialogDescription className="text-slate-600">
+                Browse the roster and jump into a teammate&apos;s profile.
+              </DialogDescription>
+            </DialogHeader>
+            {hasRoster ? (
+              <div className="space-y-4">
+                {teamMemberContext.map((member) => (
+                  <div
+                    key={member.id}
+                    className="rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-sm"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Link
+                          href={`/user/${member.id}`}
+                          className="text-sm font-semibold text-slate-900 underline-offset-4 hover:underline"
+                          onClick={() => setIsRosterOpen(false)}
+                        >
+                          {member.name}
+                        </Link>
+                        <div className="text-xs text-slate-500">
+                          {member.email || "No email on file"}
+                        </div>
+                      </div>
+                      <Button asChild size="sm" variant="outline" className="border-slate-300 bg-white text-slate-900 hover:bg-slate-100">
+                        <Link href={`/user/${member.id}`}>Open profile</Link>
+                      </Button>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {member.roles?.length ? (
+                        member.roles.map((role) => (
+                          <Badge
+                            key={`${member.id}-${role}`}
+                            variant="outline"
+                            className="border-slate-300 bg-white text-slate-700 capitalize"
+                          >
+                            {role}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-xs text-slate-500">No roles assigned</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">This team doesn&apos;t have any members yet.</p>
+            )}
+            {teamId ? (
+              <div className="pt-4">
+                <Button className="w-full bg-slate-900 text-white hover:bg-slate-800" asChild>
+                  <Link href={`/teams/${teamId}`}>View team page</Link>
+                </Button>
+              </div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </>
   );
 }
 
 export default BoardCanvas;
+async function fetchUserTag(db: Firestore, uid: string) {
+  try {
+    const tagQuery = query(collection(db, "user_tags"), where("uid", "==", uid), limit(1));
+    const tagSnap = await getDocs(tagQuery);
+    if (tagSnap.empty) return undefined;
+    const docSnap = tagSnap.docs[0];
+    const docId = typeof docSnap.id === "string" ? docSnap.id.trim() : "";
+    if (docId) return docId;
+    const data = docSnap.data() as any;
+    const fallback = typeof data?.tag === "string" ? data.tag.trim() : "";
+    return fallback || undefined;
+  } catch (error) {
+    console.error("board-canvas:fetchUserTag", error);
+    return undefined;
+  }
+}

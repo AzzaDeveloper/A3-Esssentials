@@ -14,7 +14,11 @@ export default async function MoodboardDetailPage({ params }: PageProps) {
 
   return (
     <div className="fixed inset-0">
-      <BoardCanvas boardId={moodboardId} isPersonal={board.type !== "team"} />
+      <BoardCanvas
+        boardId={moodboardId}
+        isPersonal={board.type !== "team"}
+        teamId={board.type === "team" ? board.teamId ?? null : null}
+      />
       {/* Overlay header */}
       <div className="pointer-events-none absolute left-4 top-16 z-10">
         <div className="rounded-xl bg-gradient-to-r from-white/95 via-white/90 to-slate-100/90 backdrop-blur-md border border-slate-200/80 shadow-xl px-4 py-3">
@@ -25,14 +29,14 @@ export default async function MoodboardDetailPage({ params }: PageProps) {
           </div>
           <div className="text-sm font-semibold text-slate-900 mt-1">{board.name}</div>
           <div className="text-[11px] text-slate-500">
-            {board.type === "team" ? (board.teamName ? `${board.teamName} team` : "Team") : "Personal"} â€¢ Updated {new Date(board.updatedAt).toLocaleString()}
+            {board.type === "team" ? (board.teamName ? `${board.teamName} team` : "Team") : "Personal"} • Updated {new Date(board.updatedAt).toLocaleString()}
           </div>
         </div>
       </div>
       {/* Overlay hint */}
       <div className="pointer-events-none absolute right-4 top-4 z-10">
         <div className="rounded-xl bg-gradient-to-r from-white/90 via-white/85 to-slate-100/85 backdrop-blur-md border border-slate-200/70 shadow-xl px-4 py-2 text-[11px] text-slate-600">
-          Drag background to pan â€¢ Scroll to zoom â€¢ Drag notes
+          Drag background to pan • Scroll to zoom • Drag notes
         </div>
       </div>
     </div>

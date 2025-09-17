@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Calendar, Zap, AlertTriangle, Brain, Heart, Target, AlertCircle, LucideIcon } from "lucide-react";
+import { Calendar, Zap, AlertTriangle } from "lucide-react";
 import type { Task, TaskEnergy, TaskMember, TaskMood, TaskUrgency } from "@/lib/types";
+import { DEFAULT_MOOD, MOOD_CONFIG } from "@/lib/moods";
 import { cn } from "@/lib/utils";
 
 export interface TaskCardProps {
@@ -15,69 +16,29 @@ export interface TaskCardProps {
   };
 }
 
-const moodConfig: Record<TaskMood, { colors: string; icon: LucideIcon; label: string; borderColor: string }> = {
-  energetic: {
-    colors: "from-orange-400 to-rose-500",
-    icon: Heart,
-    label: "Energetic",
-    borderColor: "border-orange-200",
-  },
-  calm: {
-    colors: "from-sky-400 to-cyan-500",
-    icon: Brain,
-    label: "Calm",
-    borderColor: "border-sky-200",
-  },
-  focused: {
-    colors: "from-violet-400 to-indigo-500",
-    icon: Target,
-    label: "Focused",
-    borderColor: "border-violet-200",
-  },
-  stressed: {
-    colors: "from-rose-500 to-pink-600",
-    icon: AlertCircle,
-    label: "Stressed",
-    borderColor: "border-rose-200",
-  },
-  creative: {
-    colors: "from-pink-400 to-fuchsia-500",
-    icon: Zap,
-    label: "Creative",
-    borderColor: "border-pink-200",
-  },
-  analytical: {
-    colors: "from-emerald-400 to-teal-500",
-    icon: Brain,
-    label: "Analytical",
-    borderColor: "border-emerald-200",
-  },
-};
-
 const urgencyConfig: Record<TaskUrgency, { color: string; label: string }> = {
   low: { color: "bg-green-100 text-green-800 border-green-300", label: "LOW" },
   medium: { color: "bg-yellow-100 text-yellow-800 border-yellow-300", label: "MEDIUM" },
   urgent: { color: "bg-orange-100 text-orange-800 border-orange-300", label: "URGENT" },
   critical: { color: "bg-red-100 text-red-800 border-red-300", label: "CRITICAL" },
 };
-
 const energyConfig: Record<TaskEnergy, { color: string; label: string }> = {
   low: { color: "bg-slate-100 text-slate-800 border-slate-300", label: "LOW ENERGY" },
   medium: { color: "bg-blue-100 text-blue-800 border-blue-300", label: "MEDIUM ENERGY" },
   high: { color: "bg-orange-100 text-orange-800 border-orange-300", label: "HIGH ENERGY" },
 };
 
-const fallbackMood: TaskMood = "focused";
-
-function getGradientMood(mood: TaskMood | undefined) {
-  return mood ? moodConfig[mood] ?? moodConfig[fallbackMood] : moodConfig[fallbackMood];
+function getMoodTheme(mood: TaskMood | undefined) {
+  if (mood && MOOD_CONFIG[mood]) {
+    return MOOD_CONFIG[mood];
+  }
+  return MOOD_CONFIG[DEFAULT_MOOD];
 }
 
 function getMoodBadgeClass(value: TaskMood | undefined) {
-  const moodSettings = getGradientMood(value);
-  return cn("bg-gradient-to-r text-white shadow-md", moodSettings.colors);
+  const moodSettings = getMoodTheme(value);
+  return cn("bg-gradient-to-r text-white shadow-md", moodSettings.gradient);
 }
-
 function initialsFor(member: TaskMember) {
   if (member.initials && member.initials.trim().length > 0) return member.initials.trim().slice(0, 3).toUpperCase();
   const parts = member.name.split(" ").filter(Boolean);
@@ -92,13 +53,13 @@ export function TaskCard({ task }: TaskCardProps) {
     description = "",
     dueDate,
     teamMembers = [],
-    moods = [fallbackMood],
+    moods = [DEFAULT_MOOD],
     urgency = "medium",
     energy = "medium",
   } = task;
 
-  const primaryMood = moods[0] ?? fallbackMood;
-  const primaryMoodSettings = getGradientMood(primaryMood);
+  const primaryMood = moods[0] ?? DEFAULT_MOOD;
+  const primaryMoodSettings = getMoodTheme(primaryMood);
   const urgencySettings = urgencyConfig[urgency] ?? urgencyConfig.medium;
   const energySettings = energyConfig[energy] ?? energyConfig.medium;
   const formattedDueDate = dueDate ? new Date(dueDate).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "No due date";
@@ -111,7 +72,7 @@ export function TaskCard({ task }: TaskCardProps) {
         primaryMoodSettings.borderColor,
       )}
     >
-      <div className={cn("absolute inset-x-0 top-0 h-2 bg-gradient-to-r", primaryMoodSettings.colors)} />
+      <div className={cn("absolute inset-x-0 top-0 h-2 bg-gradient-to-r", primaryMoodSettings.gradient)} />
 
       <CardHeader className="shrink-0 pb-4 pt-6">
         <div className="flex items-start justify-between gap-4">
@@ -134,7 +95,7 @@ export function TaskCard({ task }: TaskCardProps) {
             <div
               className={cn(
                 "absolute inset-0 bg-gradient-to-r",
-                primaryMoodSettings.colors,
+                primaryMoodSettings.gradient,
               )}
             />
             <div className="absolute inset-0 bg-slate-950/25 backdrop-blur-md border border-white/30" />
@@ -174,7 +135,7 @@ export function TaskCard({ task }: TaskCardProps) {
 
           <div className="flex items-center gap-2 flex-wrap justify-end">
             {moods.map((mood, index) => {
-              const moodSettings = getGradientMood(mood);
+              const moodSettings = getMoodTheme(mood);
               const MoodIcon = moodSettings.icon;
 
               return (

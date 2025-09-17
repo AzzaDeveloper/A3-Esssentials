@@ -1,14 +1,8 @@
 import type { MoodboardTask, TaskEnergy, TaskMood, TaskUrgency } from "@/lib/types";
+import { DEFAULT_MOOD, MOOD_ORDER } from "@/lib/moods";
 
-export const BOARD_TASK_FALLBACK_MOOD: TaskMood = "focused";
-export const BOARD_TASK_ALLOWED_MOODS: TaskMood[] = [
-  "energetic",
-  "calm",
-  "focused",
-  "stressed",
-  "creative",
-  "analytical",
-];
+export const BOARD_TASK_FALLBACK_MOOD: TaskMood = DEFAULT_MOOD;
+export const BOARD_TASK_ALLOWED_MOODS: TaskMood[] = [...MOOD_ORDER];
 export const BOARD_TASK_ALLOWED_URGENCIES: TaskUrgency[] = ["low", "medium", "urgent", "critical"];
 export const BOARD_TASK_ALLOWED_ENERGIES: TaskEnergy[] = ["low", "medium", "high"];
 export const BOARD_TASK_DEFAULT_WIDTH = 420;
@@ -37,3 +31,4 @@ export function createDefaultMoodboardTask(id: string, boardId: string, now: str
     updatedAt: now,
   } satisfies MoodboardTask;
 }
+

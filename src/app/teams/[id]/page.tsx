@@ -4,6 +4,7 @@ import { firebaseAdmin } from "@/lib/firebase-admin";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TeamMembersGrid } from "@/components/team-members-grid";
+import { ProfileMenu } from "@/components/profile-menu";
 
 type RoleMap = Record<string, string[]>;
 
@@ -88,6 +89,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="min-h-screen bg-stone-950 text-white relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-stone-900/60 via-stone-950 to-stone-950" />
+      <ProfileMenu />
       <div className="relative mx-auto max-w-5xl px-6 py-12 space-y-8">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold">{team.name}</h1>
