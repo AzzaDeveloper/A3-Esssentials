@@ -31,7 +31,7 @@ import { isValidTag } from "@/lib/tag"
 import { doc, getDoc } from "firebase/firestore"
 
 // Client state
-type TeamUI = Team & { role?: "Owner" | "Member"; isStarred?: boolean }
+type TeamUI = Team & { membershipRole?: "Owner" | "Member"; isStarred?: boolean }
 
 export default function TeamsPage() {
   const { user } = useAuth()
@@ -84,7 +84,7 @@ export default function TeamsPage() {
       if (t?.ok) {
         const ui: TeamUI[] = (t.items as Team[]).map((x) => ({
           ...x,
-          role: user?.uid && x.ownerId === user.uid ? "Owner" : "Member",
+          membershipRole: user?.uid && x.ownerId === user.uid ? "Owner" : "Member",
           isStarred: false,
         }))
         setTeams(ui)
@@ -212,7 +212,7 @@ export default function TeamsPage() {
   // Recompute roles when auth state or teams change
   useEffect(() => {
     if (!user) return;
-    setTeams((prev) => prev.map((t) => ({ ...t, role: t.ownerId === user.uid ? "Owner" : "Member" })));
+    setTeams((prev) => prev.map((t) => ({ ...t, membershipRole: t.ownerId === user.uid ? "Owner" : "Member" })));
   }, [user])
 
   const filteredTeams = useMemo(() =>
@@ -345,12 +345,12 @@ export default function TeamsPage() {
                         {team.isStarred && <Star className="h-4 w-4 text-amber-300 fill-amber-300 drop-shadow" />}
                       </div>
                       <div className="flex items-center gap-1">
-                        {team.role === "Owner" && <Crown className="h-4 w-4 text-accent" />}
+                        {team.membershipRole === "Owner" && <Crown className="h-4 w-4 text-accent" />}
                         <Badge
-                          variant={team.role === "Owner" ? "default" : "secondary"}
-                          className={team.role === "Owner" ? "bg-gradient-to-r from-pink-500 to-violet-500 text-white border-0" : ""}
+                          variant={team.membershipRole === "Owner" ? "default" : "secondary"}
+                          className={team.membershipRole === "Owner" ? "bg-gradient-to-r from-pink-500 to-violet-500 text-white border-0" : ""}
                         >
-                          {team.role}
+                          {team.membershipRole}
                         </Badge>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -378,7 +378,7 @@ export default function TeamsPage() {
                                 leaveTeam(team.id)
                               }}
                             >
-                              {team.role === "Owner" ? (
+                              {team.membershipRole === "Owner" ? (
                                 <>
                                   <Trash2 className="mr-2 h-4 w-4" />
                                   {team.memberCount > 1 ? 'Cannot Leave (Owner)' : 'Delete Team'}
