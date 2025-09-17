@@ -182,6 +182,13 @@ function normalizeTeamMembersForPrompt(values: TeamMemberInput[]): TeamMemberCon
   return result;
 }
 
+function initialsFromName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return undefined;
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
 function extractTextFromResponse(resp: any): string {
   const content = resp?.choices?.[0]?.message?.content;
   if (typeof content === "string" && content.trim()) return content.trim();
@@ -203,11 +210,11 @@ export async function generateTaskDraft(input: {
     "You convert natural-language task descriptions into structured JSON that matches Taskette's task schema.",
     isPersonalBoard
       ? "The task is for a personal board. Avoid adding teammates or extra collaborators unless the request is explicit."
-      : "The task is for a collaborative team board.",
+      : "The task is for a collaborative team board. Include the collaborators requested in the brief.",
     teamRoster.length
-      ? "When assigning work, choose assigneeId from the provided team roster ids when the request mentions a user or users (could be through username, roles or tag); leave it empty when no owner is specified."
+      ? "When assigning work, choose assigneeId from the provided team roster ids when the request mentions a user or users (names, tags, or roles). Leave it empty when no owner is specified."
       : "",
-    `Rules: respond with JSON only using the provided schema; keep titles under 120 characters; prefer concise markdown-free descriptions; use lowercase tags (max 10) with no symbols; use ISO YYYY-MM-DD for dueDate; default priority to "med", urgency and energy to "medium", creatively interpret an array of moods depending on the tone and context; never invent sensitive data.`,
+    `Rules: respond with JSON only using the provided schema; keep titles under 120 characters; prefer concise markdown-free descriptions; use lowercase tags (max 10) with no symbols; use ISO YYYY-MM-DD for dueDate; default priority to "med", urgency and energy to "medium"; interpret moods from tone; never invent sensitive data.`,
   ];
 
   const systemPrompt = systemPromptParts.filter(Boolean).join(" ");
@@ -233,7 +240,7 @@ export async function generateTaskDraft(input: {
       content: [
         `Team roster for assignment decisions:\n${teamRosterPrompt}`,
         "When you assign work, choose assigneeId from this roster and reuse the exact ids.",
-        "Consider each member's roles and tags when recommending collaborators, but be lax on how accurate the mentions have to be, and keep teamMembers aligned with this roster when you include teammates.",
+        "For every collaborator you assign or the brief references (even loosely), add them to teamMembers with their roster id and name. Do not invent new people; always reuse roster data.",
       ].join("\n"),
     });
   }
@@ -293,6 +300,38 @@ export async function generateTaskDraft(input: {
     createdAt: nowIso,
     updatedAt: nowIso,
   };
+
+  const existingIds = new Set(
+    draft.teamMembers
+      .map((member) => (typeof member.id === "string" ? member.id.trim() : ""))
+      .filter((id): id is string => id.length > 0),
+  );
+
+  if (validatedAssigneeId && !existingIds.has(validatedAssigneeId)) {
+    const assigned = teamRoster.find((member) => member.id === validatedAssigneeId);
+    if (assigned) {
+      draft.teamMembers.push({
+        name: assigned.name,
+        id: assigned.id,
+        initials: initialsFromName(assigned.name),
+      });
+      existingIds.add(validatedAssigneeId);
+    }
+  }
+
+  const promptContext = `${prompt}\n${rawDraft.description ?? ""}`.toLowerCase();
+  teamRoster.forEach((member) => {
+    if (existingIds.has(member.id)) return;
+    const nameMatch = member.name && promptContext.includes(member.name.toLowerCase());
+    const tagMatch = member.tag ? promptContext.includes(`@${member.tag.toLowerCase()}`) : false;
+    if (!nameMatch && !tagMatch) return;
+    draft.teamMembers.push({
+      name: member.name,
+      id: member.id,
+      initials: initialsFromName(member.name),
+    });
+    existingIds.add(member.id);
+  });
 
   return draft;
 }
