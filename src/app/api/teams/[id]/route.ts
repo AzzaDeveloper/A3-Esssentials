@@ -32,6 +32,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       members,
       memberCount: x.memberCount ?? members.length,
       isPublic,
+      role: x.role ?? {},
+      teamRole: x.teamRole ?? {},
       createdAt: (x.createdAt as Timestamp)?.toDate().toISOString(),
       updatedAt: (x.updatedAt as Timestamp)?.toDate().toISOString(),
       viewer: { id: me.uid, role: x.ownerId === me.uid ? "Owner" : (isMember ? "Member" : "Guest") },

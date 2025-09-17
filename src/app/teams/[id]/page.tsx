@@ -2,9 +2,27 @@ import { notFound, redirect } from "next/navigation";
 import { currentUserServer } from "@/lib/auth-server";
 import { firebaseAdmin } from "@/lib/firebase-admin";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TeamMembersGrid } from "@/components/team-members-grid";
+
+type RoleMap = Record<string, string[]>;
+
+function normalizeRoleMap(value: unknown): RoleMap {
+  if (!value || typeof value !== "object") return {};
+  const entries = Object.entries(value as Record<string, unknown>);
+  const result: RoleMap = {};
+  for (const [key, raw] of entries) {
+    if (!key) continue;
+    if (Array.isArray(raw)) {
+      result[key] = raw.filter((v) => typeof v === "string" && v.trim().length > 0) as string[];
+      continue;
+    }
+    if (typeof raw === "string") {
+      result[key] = [raw];
+    }
+  }
+  return result;
+}
 
 function toIso(v: any): string | undefined {
   if (!v) return undefined;
@@ -31,6 +49,9 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   const isPublic = !!x.isPublic;
   if (!isMember && !isPublic) notFound();
 
+  const roleMap = normalizeRoleMap(x.role);
+  const teamRoleMap = normalizeRoleMap(x.teamRole);
+
   const team = {
     id: snap.id,
     name: x.name ?? "",
@@ -53,6 +74,11 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         displayName: d.displayName || d.email?.split("@")[0] || "User",
         photoURL: d.photoURL || null,
         tag: (d.tag as string | null) ?? null,
+        bio: (d.bio as string | null) ?? null,
+        summary: (d.bio as string | null) ?? d.jobTitle ?? d.title ?? null,
+        email: (d.email as string | null) ?? null,
+        roles: roleMap[uid] ?? [],
+        teamRoles: teamRoleMap[uid] ?? [],
       };
     })
   );
@@ -74,23 +100,15 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
             <CardTitle className="text-base">Members</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-4">
-              {memberProfiles.map((m) => (
-                <Link key={m.id} href={`/user/${m.tag || m.id}`} className="flex items-center gap-2 min-w-[12rem]">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={m.photoURL ?? undefined} alt={m.displayName} />
-                    <AvatarFallback>{m.displayName.slice(0,1).toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <div className="text-sm">
-                    <div className="text-foreground">{m.displayName}</div>
-                    <div className="text-muted-foreground text-xs">{m.id === team.ownerId ? 'Owner' : 'Member'}</div>
-                  </div>
-                </Link>
-              ))}
-              {team.memberCount > memberProfiles.length && (
-                <div className="text-sm text-muted-foreground self-center">+{team.memberCount - memberProfiles.length} more…</div>
-              )}
-            </div>
+            <TeamMembersGrid
+              teamId={team.id}
+              members={memberProfiles}
+              canManageRoles={team.ownerId === me.uid}
+              viewerId={me.uid}
+            />
+            {team.memberCount > memberProfiles.length && (
+              <div className="mt-4 text-sm text-muted-foreground">+{team.memberCount - memberProfiles.length} more…</div>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -58,6 +58,8 @@ export interface Team {
   description?: string;
   ownerId: string;
   members: string[];
+  role?: Record<string, string[]>;
+  teamRole?: Record<string, string[]>;
   memberCount: number;
   isPublic?: boolean;
   createdAt: string; // ISO
