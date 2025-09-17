@@ -17,40 +17,40 @@ export interface TaskCardProps {
 
 const moodConfig: Record<TaskMood, { colors: string; icon: LucideIcon; label: string; borderColor: string }> = {
   energetic: {
-    colors: "from-orange-500 to-red-500",
+    colors: "from-orange-400 to-rose-500",
     icon: Heart,
     label: "Energetic",
-    borderColor: "border-orange-500/20",
+    borderColor: "border-orange-200",
   },
   calm: {
-    colors: "from-blue-500 to-cyan-500",
+    colors: "from-sky-400 to-cyan-500",
     icon: Brain,
     label: "Calm",
-    borderColor: "border-blue-500/20",
+    borderColor: "border-sky-200",
   },
   focused: {
-    colors: "from-purple-500 to-indigo-500",
+    colors: "from-violet-400 to-indigo-500",
     icon: Target,
     label: "Focused",
-    borderColor: "border-purple-500/20",
+    borderColor: "border-violet-200",
   },
   stressed: {
-    colors: "from-red-600 to-pink-600",
+    colors: "from-rose-500 to-pink-600",
     icon: AlertCircle,
     label: "Stressed",
-    borderColor: "border-red-500/20",
+    borderColor: "border-rose-200",
   },
   creative: {
-    colors: "from-pink-500 to-rose-500",
+    colors: "from-pink-400 to-fuchsia-500",
     icon: Zap,
     label: "Creative",
-    borderColor: "border-pink-500/20",
+    borderColor: "border-pink-200",
   },
   analytical: {
-    colors: "from-emerald-500 to-teal-500",
+    colors: "from-emerald-400 to-teal-500",
     icon: Brain,
     label: "Analytical",
-    borderColor: "border-emerald-500/20",
+    borderColor: "border-emerald-200",
   },
 };
 
@@ -73,23 +73,9 @@ function getGradientMood(mood: TaskMood | undefined) {
   return mood ? moodConfig[mood] ?? moodConfig[fallbackMood] : moodConfig[fallbackMood];
 }
 
-function getBadgeClass(value: TaskMood | undefined) {
-  switch (value) {
-    case "energetic":
-      return "bg-orange-600";
-    case "calm":
-      return "bg-blue-600";
-    case "focused":
-      return "bg-purple-600";
-    case "stressed":
-      return "bg-red-700";
-    case "creative":
-      return "bg-pink-600";
-    case "analytical":
-      return "bg-emerald-600";
-    default:
-      return "bg-gray-600";
-  }
+function getMoodBadgeClass(value: TaskMood | undefined) {
+  const moodSettings = getGradientMood(value);
+  return cn("bg-gradient-to-r text-white shadow-md", moodSettings.colors);
 }
 
 function initialsFor(member: TaskMember) {
@@ -120,7 +106,8 @@ export function TaskCard({ task }: TaskCardProps) {
   return (
     <Card
       className={cn(
-        "relative overflow-hidden transition-all duration-300 hover:shadow-lg border-2",
+        "relative overflow-hidden bg-white text-slate-900 transition-all duration-300 border",
+        "shadow-sm hover:shadow-xl",
         primaryMoodSettings.borderColor,
       )}
     >
@@ -129,7 +116,7 @@ export function TaskCard({ task }: TaskCardProps) {
       <CardHeader className="pb-4 pt-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 space-y-3">
-            <h3 className="text-2xl font-bold text-foreground leading-tight">{title}</h3>
+            <h3 className="text-2xl font-bold text-slate-900 leading-tight">{title}</h3>
 
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline" className={cn("font-medium", energySettings.color)}>
@@ -143,35 +130,41 @@ export function TaskCard({ task }: TaskCardProps) {
             </div>
           </div>
 
-          <div
-            className={cn(
-              "flex items-center gap-2 text-white px-4 py-3 rounded-xl shadow-lg",
-              getBadgeClass(primaryMood),
-            )}
-          >
-            <Calendar className="w-5 h-5" />
-            <div className="text-right">
-              <div className="text-xs font-medium opacity-90">Due Date</div>
-              <div className="text-sm font-bold">{formattedDueDate}</div>
+          <div className="relative rounded-xl overflow-hidden">
+            <div
+              className={cn(
+                "absolute inset-0 bg-gradient-to-r",
+                primaryMoodSettings.colors,
+              )}
+            />
+            <div className="absolute inset-0 bg-slate-950/25 backdrop-blur-md border border-white/30" />
+            <div className="relative flex items-center gap-3 px-4 py-3 text-white">
+              <Calendar className="w-5 h-5" />
+              <div className="text-right">
+                <div className="text-xs font-medium uppercase tracking-wide opacity-90">Due Date</div>
+                <div className="text-sm font-semibold">{formattedDueDate}</div>
+              </div>
             </div>
           </div>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-6">
-        <p className="text-muted-foreground leading-relaxed">{description || "No description provided."}</p>
+        <p className="text-slate-600 leading-relaxed">{description || "No description provided."}</p>
 
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex -space-x-2">
               {teamMembers.length === 0 && (
                 <Avatar className="w-8 h-8 border-2 border-background">
-                  <AvatarFallback className="text-xs font-medium bg-muted">--</AvatarFallback>
+                  <AvatarFallback className="text-xs font-medium bg-white text-slate-600 border border-slate-200">--</AvatarFallback>
                 </Avatar>
               )}
               {teamMembers.map((member, index) => (
                 <Avatar key={`${member.id ?? index}-${index}`} className="w-8 h-8 border-2 border-background">
-                  <AvatarFallback className="text-xs font-medium bg-muted">{initialsFor(member)}</AvatarFallback>
+                  <AvatarFallback className="text-xs font-medium bg-white text-slate-600 border border-slate-200">
+                    {initialsFor(member)}
+                  </AvatarFallback>
                 </Avatar>
               ))}
             </div>
@@ -186,8 +179,8 @@ export function TaskCard({ task }: TaskCardProps) {
                 <div
                   key={`${mood}-${index}`}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium shadow-sm text-white",
-                    getBadgeClass(mood),
+                    "flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium text-white",
+                    getMoodBadgeClass(mood),
                   )}
                 >
                   <MoodIcon className="w-4 h-4" />
@@ -201,5 +194,3 @@ export function TaskCard({ task }: TaskCardProps) {
     </Card>
   );
 }
-
-
