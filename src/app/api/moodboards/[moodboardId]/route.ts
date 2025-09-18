@@ -1,18 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { currentUserServer } from "@/lib/auth-server";
 import { deleteMoodboardForUser } from "@/lib/moodboards";
 
-interface RouteParams {
-  params: { moodboardId: string };
-}
-
-export async function DELETE(_request: Request, { params }: RouteParams) {
+export async function DELETE(
+  _request: NextRequest,
+  context: { params: Promise<{ moodboardId: string }> },
+) {
   const me = await currentUserServer();
   if (!me) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
-  const boardId = params.moodboardId;
+  const { moodboardId: boardId } = await context.params;
   if (!boardId) {
     return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
   }
