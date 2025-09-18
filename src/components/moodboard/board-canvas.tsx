@@ -10,23 +10,11 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from "react";
-import { BoardTaskElement } from "@/components/moodboard/board-task-element";
-import { BoardCursors } from "@/components/moodboard/board-cursors";
-import { Button } from "@/components/ui/button";
-import {
-  CreateTaskDialog,
-  type ManualTaskFormState,
-} from "@/components/tasks/create-task-dialog";
+import { BoardInteractiveSurface } from "@/components/moodboard/board-interactive-surface";
+import { BoardCanvasControls } from "@/components/moodboard/board-canvas-controls";
+import { BoardRosterDialog } from "@/components/moodboard/board-roster-dialog";
 import { TaskEditorDialog } from "@/components/moodboard/task-editor-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
+import { type ManualTaskFormState } from "@/components/tasks/create-task-dialog";
 import { firebase } from "@/lib/firebase";
 import { useAuth } from "@/hooks/useAuth";
 import type {
@@ -54,6 +42,7 @@ import {
   normalizeUrgency,
 } from "@/lib/moodboard-normalize";
 import {
+  onDisconnect,
   onValue,
   push,
   ref,
@@ -61,6 +50,7 @@ import {
   serverTimestamp,
   set,
   update,
+  type DatabaseReference,
 } from "firebase/database";
 import {
   collection,
@@ -111,6 +101,19 @@ function toElementPosition(world: { x: number; y: number }) {
   };
 }
 
+const POSITION_BROADCAST_INTERVAL = 180;
+const POSITION_KEEP_ALIVE_MS = 3_000;
+
+interface ElementPresencePayload {
+  elementId?: string;
+  userId?: string;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  updatedAt?: number;
+}
+
 export function BoardCanvas({
   boardId,
   isPersonal = false,
@@ -140,6 +143,31 @@ export function BoardCanvas({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMemberOption[]>([]);
   const [isRosterOpen, setIsRosterOpen] = useState(false);
+  const zIndexCounterRef = useRef(0);
+  const [zIndexMap, setZIndexMap] = useState<Record<string, number>>({});
+
+  const [remoteElementOverrides, setRemoteElementOverrides] = useState<
+    Record<string, { x: number; y: number; w?: number; h?: number }>
+  >({});
+  const dragPresenceRef = useRef<{
+    active: boolean;
+    dirty: boolean;
+    elementId: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    lastSentAt: number;
+  }>({
+    active: false,
+    dirty: false,
+    elementId: "",
+    x: 0,
+    y: 0,
+    w: BOARD_TASK_DEFAULT_WIDTH,
+    h: BOARD_TASK_DEFAULT_HEIGHT,
+    lastSentAt: 0,
+  });
 
   useEffect(() => {
     const elementsRef = ref(rtdb, `moodboards/${boardId}/elements`);
@@ -212,6 +240,38 @@ export function BoardCanvas({
 
     return () => unsubscribe();
   }, [boardId, rtdb]);
+
+  useEffect(() => {
+    setZIndexMap((previous) => {
+      const next = { ...previous };
+      let changed = false;
+      for (const element of elements) {
+        if (next[element.id] === undefined) {
+          zIndexCounterRef.current += 1;
+          next[element.id] = zIndexCounterRef.current;
+          changed = true;
+        }
+      }
+      for (const key of Object.keys(next)) {
+        if (!elements.some((element) => element.id === key)) {
+          delete next[key];
+          changed = true;
+        }
+      }
+      return changed ? next : previous;
+    });
+  }, [elements]);
+
+  const bringElementToFront = useCallback((id: string) => {
+    setZIndexMap((previous) => {
+      const nextValue = zIndexCounterRef.current + 1;
+      zIndexCounterRef.current = nextValue;
+      if (previous[id] === nextValue) {
+        return previous;
+      }
+      return { ...previous, [id]: nextValue };
+    });
+  }, []);
 
   useEffect(() => {
     if (isPersonal || !teamId) {
@@ -394,8 +454,19 @@ export function BoardCanvas({
       dragStartRef.current = { x: event.clientX, y: event.clientY };
       const element = elements.find((entry) => entry.id === id);
       elemStartRef.current = { x: element?.x ?? 0, y: element?.y ?? 0 };
+      bringElementToFront(id);
+      const initialX = element?.x ?? elemStartRef.current.x;
+      const initialY = element?.y ?? elemStartRef.current.y;
+      dragPresenceRef.current.elementId = id;
+      dragPresenceRef.current.x = initialX;
+      dragPresenceRef.current.y = initialY;
+      dragPresenceRef.current.w = element?.w ?? BOARD_TASK_DEFAULT_WIDTH;
+      dragPresenceRef.current.h = element?.h ?? BOARD_TASK_DEFAULT_HEIGHT;
+      dragPresenceRef.current.active = true;
+      dragPresenceRef.current.dirty = true;
+      dragPresenceRef.current.lastSentAt = 0;
     },
-    [elements]
+    [bringElementToFront, elements]
   );
 
   const onElementPointerMove = useCallback(
@@ -404,28 +475,30 @@ export function BoardCanvas({
         const id = resizeIdRef.current;
         const dx = (event.clientX - resizeStartRef.current.x) / scale;
         const dy = (event.clientY - resizeStartRef.current.y) / scale;
-        setElements((previous) =>
-          previous.map((element) => {
-            if (element.id !== id) return element;
-            const baseWidth =
-              sizeStartRef.current.w ?? BOARD_TASK_DEFAULT_WIDTH;
-            const baseHeight =
-              sizeStartRef.current.h ?? BOARD_TASK_DEFAULT_HEIGHT;
-            const nextWidth = Math.round(
-              Math.min(
-                BOARD_TASK_MAX_WIDTH,
-                Math.max(BOARD_TASK_MIN_WIDTH, baseWidth + dx)
-              )
-            );
-            const nextHeight = Math.round(
-              Math.min(
-                BOARD_TASK_MAX_HEIGHT,
-                Math.max(BOARD_TASK_MIN_HEIGHT, baseHeight + dy)
-              )
-            );
-            return { ...element, w: nextWidth, h: nextHeight };
-          })
+        const baseWidth = sizeStartRef.current.w ?? BOARD_TASK_DEFAULT_WIDTH;
+        const baseHeight = sizeStartRef.current.h ?? BOARD_TASK_DEFAULT_HEIGHT;
+        const nextWidth = Math.round(
+          Math.min(
+            BOARD_TASK_MAX_WIDTH,
+            Math.max(BOARD_TASK_MIN_WIDTH, baseWidth + dx)
+          )
         );
+        const nextHeight = Math.round(
+          Math.min(
+            BOARD_TASK_MAX_HEIGHT,
+            Math.max(BOARD_TASK_MIN_HEIGHT, baseHeight + dy)
+          )
+        );
+        setElements((previous) =>
+          previous.map((element) =>
+            element.id === id
+              ? { ...element, w: nextWidth, h: nextHeight }
+              : element
+          )
+        );
+        dragPresenceRef.current.w = nextWidth;
+        dragPresenceRef.current.h = nextHeight;
+        dragPresenceRef.current.dirty = true;
         return;
       }
 
@@ -440,9 +513,22 @@ export function BoardCanvas({
           element.id === id ? { ...element, x: nextX, y: nextY } : element
         )
       );
+      dragPresenceRef.current.x = nextX;
+      dragPresenceRef.current.y = nextY;
+      dragPresenceRef.current.dirty = true;
     },
     [scale]
   );
+  const viewerId = user?.uid ?? null;
+  const viewerName = user?.displayName ?? user?.email ?? null;
+
+  const elementPresenceRef = useMemo<DatabaseReference | null>(() => {
+    if (!viewerId) return null;
+    return ref(
+      rtdb,
+      ["moodboards", boardId, "presence", "elements", viewerId].join("/")
+    );
+  }, [boardId, rtdb, viewerId]);
 
   const endElementDrag = useCallback(
     async (event: PointerEvent<HTMLDivElement>) => {
@@ -463,8 +549,19 @@ export function BoardCanvas({
       } catch (error) {
         console.error("board-canvas:endElementDrag", error);
       }
+      dragPresenceRef.current.active = false;
+      dragPresenceRef.current.elementId = "";
+      dragPresenceRef.current.dirty = false;
+      dragPresenceRef.current.lastSentAt = 0;
+      dragPresenceRef.current.x = element.x;
+      dragPresenceRef.current.y = element.y;
+      dragPresenceRef.current.w = element.w ?? BOARD_TASK_DEFAULT_WIDTH;
+      dragPresenceRef.current.h = element.h ?? BOARD_TASK_DEFAULT_HEIGHT;
+      if (elementPresenceRef) {
+        remove(elementPresenceRef).catch(() => {});
+      }
     },
-    [boardId, elements, rtdb]
+    [boardId, elementPresenceRef, elements, rtdb]
   );
 
   const startElementResize = useCallback(
@@ -479,8 +576,17 @@ export function BoardCanvas({
         w: element.w ?? BOARD_TASK_DEFAULT_WIDTH,
         h: element.h ?? BOARD_TASK_DEFAULT_HEIGHT,
       };
+      bringElementToFront(id);
+      dragPresenceRef.current.elementId = id;
+      dragPresenceRef.current.x = element.x ?? 0;
+      dragPresenceRef.current.y = element.y ?? 0;
+      dragPresenceRef.current.w = element.w ?? BOARD_TASK_DEFAULT_WIDTH;
+      dragPresenceRef.current.h = element.h ?? BOARD_TASK_DEFAULT_HEIGHT;
+      dragPresenceRef.current.active = true;
+      dragPresenceRef.current.dirty = true;
+      dragPresenceRef.current.lastSentAt = 0;
     },
-    [elements]
+    [bringElementToFront, elements]
   );
 
   const endElementResize = useCallback(
@@ -502,8 +608,19 @@ export function BoardCanvas({
       } catch (error) {
         console.error("board-canvas:endElementResize", error);
       }
+      dragPresenceRef.current.active = false;
+      dragPresenceRef.current.elementId = "";
+      dragPresenceRef.current.dirty = false;
+      dragPresenceRef.current.lastSentAt = 0;
+      dragPresenceRef.current.x = element.x;
+      dragPresenceRef.current.y = element.y;
+      dragPresenceRef.current.w = element.w ?? BOARD_TASK_DEFAULT_WIDTH;
+      dragPresenceRef.current.h = element.h ?? BOARD_TASK_DEFAULT_HEIGHT;
+      if (elementPresenceRef) {
+        remove(elementPresenceRef).catch(() => {});
+      }
     },
-    [boardId, elements, rtdb]
+    [boardId, elementPresenceRef, elements, rtdb]
   );
 
   const addTask = useCallback(
@@ -638,6 +755,36 @@ export function BoardCanvas({
     } satisfies CSSProperties;
   }, [offset.x, offset.y]);
 
+  const renderedElements = useMemo(() => {
+    const mapped = elements.map((element) => {
+      const override = remoteElementOverrides[element.id];
+      if (!override) return element;
+      const width =
+        override.w === undefined
+          ? element.w ?? BOARD_TASK_DEFAULT_WIDTH
+          : Math.min(
+              BOARD_TASK_MAX_WIDTH,
+              Math.max(BOARD_TASK_MIN_WIDTH, override.w)
+            );
+      const height =
+        override.h === undefined
+          ? element.h ?? BOARD_TASK_DEFAULT_HEIGHT
+          : Math.min(
+              BOARD_TASK_MAX_HEIGHT,
+              Math.max(BOARD_TASK_MIN_HEIGHT, override.h)
+            );
+      return {
+        ...element,
+        x: override.x,
+        y: override.y,
+        w: width,
+        h: height,
+      };
+    });
+    mapped.sort((a, b) => (zIndexMap[a.id] ?? 0) - (zIndexMap[b.id] ?? 0));
+    return mapped;
+  }, [elements, remoteElementOverrides, zIndexMap]);
+
   const editingElement = useMemo(
     () =>
       editingId
@@ -659,13 +806,97 @@ export function BoardCanvas({
   );
   const isTeamBoard = !isPersonal && !!teamId;
   const hasRoster = teamMemberContext.length > 0;
-
-  const viewerId = user?.uid ?? null;
   const viewerTag = useMemo(() => {
     if (!viewerId) return user?.displayName ?? null;
     const match = teamMemberContext.find((member) => member.id === viewerId);
     return match?.tag ?? null;
   }, [teamMemberContext, viewerId, user?.displayName]);
+
+  useEffect(() => {
+    if (!elementPresenceRef) return undefined;
+    const disconnect = onDisconnect(elementPresenceRef);
+    disconnect.remove().catch(() => {});
+    return () => {
+      disconnect.cancel().catch(() => {});
+      remove(elementPresenceRef).catch(() => {});
+    };
+  }, [elementPresenceRef]);
+
+  useEffect(() => {
+    if (!elementPresenceRef) return undefined;
+
+    const intervalId = window.setInterval(() => {
+      const state = dragPresenceRef.current;
+      if (!state.active || !state.elementId) return;
+
+      const now = Date.now();
+      if (!state.dirty && now - state.lastSentAt < POSITION_KEEP_ALIVE_MS) {
+        return;
+      }
+
+      state.dirty = false;
+      state.lastSentAt = now;
+
+      void set(elementPresenceRef, {
+        elementId: state.elementId,
+        userId: viewerId ?? undefined,
+        x: state.x,
+        y: state.y,
+        w: state.w,
+        h: state.h,
+        updatedAt: now,
+      } satisfies ElementPresencePayload);
+    }, POSITION_BROADCAST_INTERVAL);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [elementPresenceRef, viewerId]);
+
+  useEffect(() => {
+    const presenceRef = ref(
+      rtdb,
+      ["moodboards", boardId, "presence", "elements"].join("/")
+    );
+    const unsubscribe = onValue(presenceRef, (snapshot) => {
+      const value = snapshot.val() as Record<
+        string,
+        ElementPresencePayload
+      > | null;
+      if (!value) {
+        setRemoteElementOverrides({});
+        return;
+      }
+
+      const next: Record<
+        string,
+        { x: number; y: number; w?: number; h?: number }
+      > = {};
+      for (const payload of Object.values(value)) {
+        if (!payload) continue;
+        if (payload.userId && payload.userId === viewerId) continue;
+        if (!payload.elementId) continue;
+
+        const x = Number(payload.x);
+        const y = Number(payload.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+
+        const entry: { x: number; y: number; w?: number; h?: number } = {
+          x,
+          y,
+        };
+        const width = Number(payload.w);
+        if (Number.isFinite(width)) entry.w = width;
+        const height = Number(payload.h);
+        if (Number.isFinite(height)) entry.h = height;
+        next[payload.elementId] = entry;
+      }
+
+      setRemoteElementOverrides(next);
+    });
+
+    return () => unsubscribe();
+  }, [boardId, rtdb, viewerId]);
 
   useEffect(() => {
     if (!isTeamBoard && isRosterOpen) {
@@ -703,104 +934,49 @@ export function BoardCanvas({
   return (
     <>
       <div className="relative h-screen w-screen select-none overflow-hidden bg-white">
-        <div className="absolute left-3 top-3 z-20 flex items-center gap-2">
-          <CreateTaskDialog
-            triggerLabel="Add Task"
-            triggerClassName="border border-slate-300 bg-slate-900 text-white shadow-sm hover:bg-slate-800"
-            isPersonalBoard={isPersonal}
-            onManualCreate={handleManualCreate}
-            teamMembers={teamMemberContext}
-          />
-          <Button
-            variant="outline"
-            className="border border-slate-300 bg-slate-100 text-slate-900 shadow-sm hover:bg-slate-200"
-            onClick={() => addTask()}
-          >
-            Quick Drop
-          </Button>
-          {isTeamBoard && teamId ? (
-            <Button
-              variant="outline"
-              className="border border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-100"
-              asChild
-            >
-              <Link href={`/teams/${teamId}`}>View Team</Link>
-            </Button>
-          ) : null}
-          <div className="rounded-md border border-slate-200 bg-white/90 px-2 py-1 text-xs font-medium text-slate-600 shadow-sm">
-            {Math.round(scale * 100)}%
-          </div>
-        </div>
+        <BoardCanvasControls
+          isPersonalBoard={isPersonal}
+          isTeamBoard={isTeamBoard}
+          teamId={teamId}
+          hasRoster={hasRoster}
+          scale={scale}
+          isOffline={isOffline}
+          teamMembers={teamMemberContext}
+          onManualCreate={handleManualCreate}
+          onQuickDrop={() => addTask()}
+          onOpenRoster={() => setIsRosterOpen(true)}
+        />
 
-        {isTeamBoard ? (
-          <div className="absolute right-3 top-16 z-30 flex items-center gap-2">
-            <Button
-              variant="outline"
-              className="border border-slate-300 bg-white text-slate-900 shadow-sm hover:bg-slate-100"
-              onClick={() => setIsRosterOpen(true)}
-              disabled={!hasRoster}
-            >
-              Team roster
-            </Button>
-          </div>
-        ) : null}
-
-        {isOffline && (
-          <div className="absolute left-3 top-14 z-30 max-w-sm rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 shadow-sm">
-            Connection lost. Changes will sync once we reconnect.
-          </div>
-        )}
-
-        <div
-          className="absolute inset-0 z-10"
+        <BoardInteractiveSurface
+          boardId={boardId}
+          canvasRef={canvasRef}
+          gridStyle={gridStyle}
+          transformStyle={transformStyle}
+          renderedElements={renderedElements}
+          zIndices={zIndexMap}
+          offset={offset}
+          scale={scale}
+          viewerId={viewerId}
+          viewerName={viewerName}
+          viewerTag={viewerTag}
+          teamMembers={teamMemberContext}
+          isBoardEmpty={!elements.length}
           onWheel={onWheel}
-          onPointerDown={onBackgroundPointerDown}
-          onPointerMove={onBackgroundPointerMove}
-          onPointerUp={onBackgroundPointerUp}
-          ref={canvasRef}
-        >
-          <BoardCursors
-            boardId={boardId}
-            containerRef={canvasRef}
-            offset={offset}
-            scale={scale}
-            viewerId={viewerId}
-            viewerName={user?.displayName ?? user?.email ?? null}
-            viewerTag={viewerTag}
-            teamMembers={teamMemberContext}
-          />
-
-          <div className="absolute inset-0" style={gridStyle} />
-
-          <div
-            className="absolute left-0 top-0 will-change-transform"
-            style={transformStyle}
-          >
-            {elements.map((element) => (
-              <BoardTaskElement
-                key={element.id}
-                element={element}
-                onPointerDown={(event) => startElementDrag(element.id, event)}
-                onPointerMove={onElementPointerMove}
-                onPointerUp={endElementDrag}
-                onResizePointerDown={(event) =>
-                  startElementResize(element.id, event)
-                }
-                onResizePointerMove={onElementPointerMove}
-                onResizePointerUp={endElementResize}
-                onEdit={() => setEditingId(element.id)}
-                onRemove={() => removeElement(element.id)}
-              />
-            ))}
-
-            {!elements.length && (
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-sm text-slate-400">
-                Board is empty. Use "Add Task" or "Quick Drop" to place your
-                first card.
-              </div>
-            )}
-          </div>
-        </div>
+          onBackgroundPointerDown={onBackgroundPointerDown}
+          onBackgroundPointerMove={onBackgroundPointerMove}
+          onBackgroundPointerUp={onBackgroundPointerUp}
+          onElementPointerMove={onElementPointerMove}
+          onElementPointerUp={endElementDrag}
+          onResizePointerMove={onElementPointerMove}
+          onResizePointerUp={endElementResize}
+          onElementPointerDown={startElementDrag}
+          onResizePointerDown={startElementResize}
+          onEdit={(id) => {
+            bringElementToFront(id);
+            setEditingId(id);
+          }}
+          onRemove={removeElement}
+        />
       </div>
 
       <TaskEditorDialog
@@ -816,80 +992,12 @@ export function BoardCanvas({
         teamMembers={teamMemberContext}
       />
       {isTeamBoard ? (
-        <Dialog open={isRosterOpen} onOpenChange={setIsRosterOpen}>
-          <DialogContent className="sm:max-w-md bg-white text-slate-900">
-            <DialogHeader>
-              <DialogTitle className="text-slate-900">Team members</DialogTitle>
-              <DialogDescription className="text-slate-600">
-                Browse the roster and jump into a teammate&apos;s profile.
-              </DialogDescription>
-            </DialogHeader>
-            {hasRoster ? (
-              <div className="space-y-4">
-                {teamMemberContext.map((member) => (
-                  <div
-                    key={member.id}
-                    className="rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-sm"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <Link
-                          href={`/user/${member.id}`}
-                          className="text-sm font-semibold text-slate-900 underline-offset-4 hover:underline"
-                          onClick={() => setIsRosterOpen(false)}
-                        >
-                          {member.name}
-                        </Link>
-                        <div className="text-xs text-slate-500">
-                          {member.email || "No email on file"}
-                        </div>
-                      </div>
-                      <Button
-                        asChild
-                        size="sm"
-                        variant="outline"
-                        className="border-slate-300 bg-white text-slate-900 hover:bg-slate-100"
-                      >
-                        <Link href={`/user/${member.id}`}>Open profile</Link>
-                      </Button>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {member.roles?.length ? (
-                        member.roles.map((role) => (
-                          <Badge
-                            key={`${member.id}-${role}`}
-                            variant="outline"
-                            className="border-slate-300 bg-white text-slate-700 capitalize"
-                          >
-                            {role}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-xs text-slate-500">
-                          No roles assigned
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500">
-                This team doesn&apos;t have any members yet.
-              </p>
-            )}
-            {teamId ? (
-              <div className="pt-4">
-                <Button
-                  className="w-full bg-slate-900 text-white hover:bg-slate-800"
-                  asChild
-                >
-                  <Link href={`/teams/${teamId}`}>View team page</Link>
-                </Button>
-              </div>
-            ) : null}
-          </DialogContent>
-        </Dialog>
+        <BoardRosterDialog
+          open={isRosterOpen}
+          onOpenChange={setIsRosterOpen}
+          teamMembers={teamMemberContext}
+          teamId={teamId}
+        />
       ) : null}
     </>
   );
