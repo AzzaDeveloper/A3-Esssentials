@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { cn } from "@/lib/utils";
@@ -129,21 +129,19 @@ export function NavigationProgress() {
   );
 
   return (
-    <Suspense>
-      <div className="pointer-events-none fixed inset-x-0 top-0 z-50 h-0.5">
-        <div
-          className={cn(
-            "h-full w-full origin-left bg-gradient-to-r from-sky-500 via-indigo-500 to-emerald-500",
-            "transition-opacity duration-150 ease-out",
-            "transform-gpu transition-transform"
-          )}
-          style={{
-            opacity: visible ? 1 : 0,
-            transform: `scaleX(${progress / 100})`,
-          }}
-        />
-      </div>
-    </Suspense>
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-50 h-0.5">
+      <div
+        className={cn(
+          "h-full w-full origin-left bg-gradient-to-r from-sky-500 via-indigo-500 to-emerald-500",
+          "transition-opacity duration-150 ease-out",
+          "transform-gpu transition-transform"
+        )}
+        style={{
+          opacity: visible ? 1 : 0,
+          transform: `scaleX(${progress / 100})`,
+        }}
+      />
+    </div>
   );
 }
 

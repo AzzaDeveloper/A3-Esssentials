@@ -4,6 +4,7 @@ import "./globals.css";
 import { NavigationProgress } from "@/components/navigation-progress";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { Suspense } from "react";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,10 +31,16 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          <NavigationProgress />
-          {children}
-          <Toaster position="top-right" richColors closeButton />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem={false}
+        >
+          <Suspense>
+            <NavigationProgress />
+            {children}
+            <Toaster position="top-right" richColors closeButton />
+          </Suspense>
         </ThemeProvider>
       </body>
     </html>
