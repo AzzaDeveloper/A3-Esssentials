@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
@@ -8,6 +8,7 @@ import { Moodboard } from "@/lib/types";
 import { MoodboardCard } from "@/components/moodboard/moodboard-card";
 import { firebase } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { useRouter } from "next/navigation";
 
 type TabKey = "all" | "personal" | "team" | "recent";
 
@@ -17,13 +18,20 @@ interface MoodboardsViewProps {
 }
 
 export function MoodboardsView({ boards, createDialog }: MoodboardsViewProps) {
+  const router = useRouter();
   const [tab, setTab] = useState<TabKey>("all");
   const [query, setQuery] = useState("");
+  const [items, setItems] = useState<Moodboard[]>(boards);
   const [participantsByBoard, setParticipantsByBoard] = useState<Record<string, Moodboard["participants"]>>({});
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setItems(boards);
+  }, [boards]);
 
   // Load team participants for team moodboards to drive avatar images
   useEffect(() => {
-    const teamBoards = boards.filter((b) => b.type === "team" && b.teamId);
+    const teamBoards = items.filter((b) => b.type === "team" && b.teamId);
     if (!teamBoards.length) return;
     const { db } = firebase();
 
@@ -55,12 +63,12 @@ export function MoodboardsView({ boards, createDialog }: MoodboardsViewProps) {
     };
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boards]);
+  }, [items]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    let list = boards;
+    let list = items;
     if (tab === "personal") list = list.filter((b) => b.type === "personal");
     if (tab === "team") list = list.filter((b) => b.type === "team");
     if (tab === "recent") list = list.filter((b) => new Date(b.updatedAt).getTime() >= weekAgo);
@@ -74,7 +82,40 @@ export function MoodboardsView({ boards, createDialog }: MoodboardsViewProps) {
       });
     }
     return list;
-  }, [boards, tab, query]);
+  }, [items, tab, query]);
+
+  const handleDelete = useCallback(
+    async (board: Moodboard) => {
+      if (typeof window !== "undefined") {
+        const confirmed = window.confirm(`Delete the moodboard "${board.name}"? This cannot be undone.`);
+        if (!confirmed) return;
+      }
+
+      setDeletingId(board.id);
+      try {
+        const res = await fetch(`/api/moodboards/${board.id}`, { method: "DELETE" });
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          throw new Error(payload?.error || "Failed to delete moodboard");
+        }
+        setItems((previous) => previous.filter((item) => item.id !== board.id));
+        setParticipantsByBoard((previous) => {
+          const next = { ...previous };
+          delete next[board.id];
+          return next;
+        });
+        router.refresh();
+      } catch (error) {
+        console.error("delete moodboard", error);
+        if (typeof window !== "undefined") {
+          window.alert("Unable to delete the moodboard. Please try again.");
+        }
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [router],
+  );
 
   return (
     <div>
@@ -100,7 +141,11 @@ export function MoodboardsView({ boards, createDialog }: MoodboardsViewProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
         {filtered.map((b) => (
           <Link key={b.id} href={`/moodboards/${b.id}`} className="no-underline">
-            <MoodboardCard board={{ ...b, participants: participantsByBoard[b.id] ?? b.participants }} />
+            <MoodboardCard
+              board={{ ...b, participants: participantsByBoard[b.id] ?? b.participants }}
+              onDelete={() => handleDelete(b)}
+              deleting={deletingId === b.id}
+            />
           </Link>
         ))}
         {createDialog && (

@@ -98,3 +98,97 @@ export interface Moodboard {
   }>;
   previewUrls?: string[]; // small live preview thumbnails
 }
+
+export interface MoodProfile {
+  memberId: string;
+  facets: Record<Facet, number>; // -1..1
+  confidence?: Partial<Record<Facet, number>>;
+  updatedAt: string;
+}
+
+export type TaskMood = "energetic" | "calm" | "focused" | "stressed" | "creative" | "analytical";
+export type TaskUrgency = "low" | "medium" | "urgent" | "critical";
+export type TaskEnergy = "low" | "medium" | "high";
+
+export interface TaskMember {
+  id: string;
+  name: string;
+  initials?: string;
+  avatarUrl?: string | null;
+  email?: string | null;
+  roles?: string[];
+}
+
+export interface TeamMemberContext {
+  id: string;
+  name: string;
+  roles: string[];
+  email?: string | null;
+  tag?: string | null;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  tags?: string[];
+  priority?: "low" | "med" | "high";
+  assigneeId?: string | null;
+  dueDate?: string;
+  moods?: TaskMood[];
+  urgency?: TaskUrgency;
+  energy?: TaskEnergy;
+  teamMembers?: TaskMember[];
+  boardId?: string;
+  boardElementId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TaskDraft {
+  title: string;
+  description: string;
+  tags: string[];
+  priority: "low" | "med" | "high";
+  assigneeId: string;
+  dueDate: string;
+  urgency: TaskUrgency;
+  energy: TaskEnergy;
+  moods: TaskMood[];
+  teamMembers: Array<
+    Pick<TaskMember, "name"> & Partial<Pick<TaskMember, "id" | "initials">>
+  >;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface AssignmentScore {
+  fit: number;
+  load: number;
+  mood_fit: number;
+  fairness: number;
+}
+
+export interface MoodboardTask extends Task {
+  moods: TaskMood[];
+  urgency: TaskUrgency;
+  energy: TaskEnergy;
+  teamMembers: TaskMember[];
+  boardId: string;
+  boardElementId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MoodboardElement {
+  id: string;
+  type: "task";
+  x: number;
+  y: number;
+  w?: number;
+  h?: number;
+  task: MoodboardTask;
+  color?: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
