@@ -1,9 +1,25 @@
-import { Button } from "@/components/ui/button"
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { ArrowRight, Sparkles, Users, Brain, Palette, Star, Zap, Heart, Coffee } from "lucide-react"
-import { ProfileMenu } from "@/components/profile-menu"
-import { SiteNav } from "@/components/site-nav"
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  ArrowRight,
+  Sparkles,
+  Users,
+  Brain,
+  Palette,
+  Star,
+  Zap,
+  Heart,
+  Coffee,
+} from "lucide-react";
+import Link from "next/link";
+import { ProfileMenu } from "@/components/profile-menu";
+import { SiteNav } from "@/components/site-nav";
 
 export default function HomePage() {
   return (
@@ -36,17 +52,23 @@ export default function HomePage() {
               </h1>
 
               <p className="text-xl text-stone-300 leading-relaxed max-w-lg">
-                Transform boring task lists into vibrant moodboards. Our AI reads between the lines to assign colors,
-                moods, and team members that match your project's energy.
+                Transform boring task lists into vibrant moodboards. Our AI
+                reads between the lines to assign colors, moods, and team
+                members that match your project's energy.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button
+                  asChild
                   size="lg"
                   className="bg-gradient-to-r from-pink-500 via-violet-500 to-cyan-500 hover:from-pink-600 hover:via-violet-600 hover:to-cyan-600 text-white border-0 shadow-lg shadow-violet-500/25"
                 >
-                  Create Your First Moodboard <ArrowRight className="w-5 h-5 ml-2" />
+                  <Link href="/register">
+                    Create Your First Moodboard{" "}
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Link>
                 </Button>
+
                 <Button
                   size="lg"
                   variant="outline"
@@ -63,7 +85,9 @@ export default function HomePage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-2 mb-2">
                     <Zap className="w-5 h-5" />
-                    <Badge className="bg-white/20 text-white text-xs">URGENT</Badge>
+                    <Badge className="bg-white/20 text-white text-xs">
+                      URGENT
+                    </Badge>
                   </div>
                   <CardTitle className="text-lg">Launch Campaign</CardTitle>
                   <CardDescription className="text-orange-100">
@@ -82,10 +106,14 @@ export default function HomePage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-2 mb-2">
                     <Brain className="w-5 h-5" />
-                    <Badge className="bg-white/20 text-white text-xs">PLANNING</Badge>
+                    <Badge className="bg-white/20 text-white text-xs">
+                      PLANNING
+                    </Badge>
                   </div>
                   <CardTitle className="text-lg">Strategy Review</CardTitle>
-                  <CardDescription className="text-blue-100">Thoughtful analysis of user feedback</CardDescription>
+                  <CardDescription className="text-blue-100">
+                    Thoughtful analysis of user feedback
+                  </CardDescription>
                   <div className="flex items-center gap-2 mt-3">
                     <div className="w-6 h-6 bg-white/30 rounded-full"></div>
                     <span className="text-xs text-blue-100">Sarah M.</span>
@@ -98,10 +126,14 @@ export default function HomePage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-2 mb-2">
                     <Palette className="w-5 h-5" />
-                    <Badge className="bg-white/20 text-white text-xs">CREATIVE</Badge>
+                    <Badge className="bg-white/20 text-white text-xs">
+                      CREATIVE
+                    </Badge>
                   </div>
                   <CardTitle className="text-lg">Design System</CardTitle>
-                  <CardDescription className="text-purple-100">Craft beautiful, cohesive UI components</CardDescription>
+                  <CardDescription className="text-purple-100">
+                    Craft beautiful, cohesive UI components
+                  </CardDescription>
                   <div className="flex items-center gap-2 mt-3">
                     <div className="w-6 h-6 bg-white/30 rounded-full"></div>
                     <div className="w-6 h-6 bg-white/30 rounded-full"></div>
@@ -115,10 +147,14 @@ export default function HomePage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-2 mb-2">
                     <Users className="w-5 h-5" />
-                    <Badge className="bg-white/20 text-white text-xs">TEAM</Badge>
+                    <Badge className="bg-white/20 text-white text-xs">
+                      TEAM
+                    </Badge>
                   </div>
                   <CardTitle className="text-lg">Sprint Planning</CardTitle>
-                  <CardDescription className="text-green-100">Collaborative roadmap session</CardDescription>
+                  <CardDescription className="text-green-100">
+                    Collaborative roadmap session
+                  </CardDescription>
                   <div className="flex items-center gap-2 mt-3">
                     <div className="w-6 h-6 bg-white/30 rounded-full"></div>
                     <div className="w-6 h-6 bg-white/30 rounded-full"></div>
@@ -143,8 +179,9 @@ export default function HomePage() {
                 <span className="text-white"> Has Its Color</span>
               </h2>
               <p className="text-xl text-stone-300 max-w-3xl mx-auto leading-relaxed">
-                Our AI doesn't just organize tasks—it feels them. Watch as your workflow transforms into a living,
-                breathing canvas of productivity.
+                Our AI doesn't just organize tasks—it feels them. Watch as your
+                workflow transforms into a living, breathing canvas of
+                productivity.
               </p>
             </div>
 
@@ -154,9 +191,12 @@ export default function HomePage() {
                   <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-orange-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                     <Zap className="w-6 h-6 text-white" />
                   </div>
-                  <CardTitle className="text-white">Urgent & Energetic</CardTitle>
+                  <CardTitle className="text-white">
+                    Urgent & Energetic
+                  </CardTitle>
                   <CardDescription className="text-stone-300">
-                    Red and orange tasks demand immediate attention. Perfect for deadlines and high-impact work.
+                    Red and orange tasks demand immediate attention. Perfect for
+                    deadlines and high-impact work.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -166,9 +206,12 @@ export default function HomePage() {
                   <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                     <Brain className="w-6 h-6 text-white" />
                   </div>
-                  <CardTitle className="text-white">Calm & Analytical</CardTitle>
+                  <CardTitle className="text-white">
+                    Calm & Analytical
+                  </CardTitle>
                   <CardDescription className="text-stone-300">
-                    Blue tasks promote deep thinking and strategic planning. Ideal for research and analysis.
+                    Blue tasks promote deep thinking and strategic planning.
+                    Ideal for research and analysis.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -178,9 +221,12 @@ export default function HomePage() {
                   <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                     <Palette className="w-6 h-6 text-white" />
                   </div>
-                  <CardTitle className="text-white">Creative & Inspiring</CardTitle>
+                  <CardTitle className="text-white">
+                    Creative & Inspiring
+                  </CardTitle>
                   <CardDescription className="text-stone-300">
-                    Purple and pink spark innovation and artistic thinking. Perfect for design and brainstorming.
+                    Purple and pink spark innovation and artistic thinking.
+                    Perfect for design and brainstorming.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -190,9 +236,12 @@ export default function HomePage() {
                   <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                     <Users className="w-6 h-6 text-white" />
                   </div>
-                  <CardTitle className="text-white">Collaborative & Growth</CardTitle>
+                  <CardTitle className="text-white">
+                    Collaborative & Growth
+                  </CardTitle>
                   <CardDescription className="text-stone-300">
-                    Green represents teamwork and steady progress. Great for meetings and long-term projects.
+                    Green represents teamwork and steady progress. Great for
+                    meetings and long-term projects.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -202,9 +251,12 @@ export default function HomePage() {
                   <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-amber-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                     <Coffee className="w-6 h-6 text-white" />
                   </div>
-                  <CardTitle className="text-white">Warm & Approachable</CardTitle>
+                  <CardTitle className="text-white">
+                    Warm & Approachable
+                  </CardTitle>
                   <CardDescription className="text-stone-300">
-                    Yellow tasks feel friendly and accessible. Perfect for onboarding and routine maintenance.
+                    Yellow tasks feel friendly and accessible. Perfect for
+                    onboarding and routine maintenance.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -214,9 +266,12 @@ export default function HomePage() {
                   <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-violet-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                     <Star className="w-6 h-6 text-white" />
                   </div>
-                  <CardTitle className="text-white">Premium & Important</CardTitle>
+                  <CardTitle className="text-white">
+                    Premium & Important
+                  </CardTitle>
                   <CardDescription className="text-stone-300">
-                    Deep purples signal high-value work that deserves special attention and careful execution.
+                    Deep purples signal high-value work that deserves special
+                    attention and careful execution.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -237,7 +292,8 @@ export default function HomePage() {
               in Action
             </h2>
             <p className="text-xl text-stone-300 max-w-2xl mx-auto">
-              Watch how a simple sentence becomes a beautifully organized, color-coded task with smart team assignments.
+              Watch how a simple sentence becomes a beautifully organized,
+              color-coded task with smart team assignments.
             </p>
           </div>
 
@@ -248,11 +304,13 @@ export default function HomePage() {
                   <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                   <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-stone-400 text-sm ml-4">Task-ette AI Processing...</span>
+                  <span className="text-stone-400 text-sm ml-4">
+                    Task-ette AI Processing...
+                  </span>
                 </div>
                 <div className="bg-stone-900 rounded-lg p-4 font-mono text-green-400 text-lg">
-                  "We need to redesign the user dashboard to be more intuitive and launch it before the big client demo
-                  next Friday"
+                  "We need to redesign the user dashboard to be more intuitive
+                  and launch it before the big client demo next Friday"
                 </div>
               </div>
 
@@ -267,7 +325,9 @@ export default function HomePage() {
                     className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse"
                     style={{ animationDelay: "0.4s" }}
                   ></div>
-                  <span className="ml-2">AI analyzing mood, urgency, and team fit...</span>
+                  <span className="ml-2">
+                    AI analyzing mood, urgency, and team fit...
+                  </span>
                 </div>
               </div>
 
@@ -276,14 +336,21 @@ export default function HomePage() {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <Zap className="w-5 h-5" />
-                      <Badge className="bg-white/20 text-white">HIGH ENERGY</Badge>
+                      <Badge className="bg-white/20 text-white">
+                        HIGH ENERGY
+                      </Badge>
                       <Badge className="bg-white/20 text-white">URGENT</Badge>
                     </div>
-                    <span className="text-sm text-orange-100">Due: Next Friday</span>
+                    <span className="text-sm text-orange-100">
+                      Due: Next Friday
+                    </span>
                   </div>
-                  <CardTitle className="text-xl mb-2">Dashboard Redesign & Launch</CardTitle>
+                  <CardTitle className="text-xl mb-2">
+                    Dashboard Redesign & Launch
+                  </CardTitle>
                   <CardDescription className="text-orange-100 mb-4">
-                    High-priority UX overhaul with tight deadline - requires focused design sprint and rapid iteration.
+                    High-priority UX overhaul with tight deadline - requires
+                    focused design sprint and rapid iteration.
                   </CardDescription>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -296,7 +363,9 @@ export default function HomePage() {
                       <div className="w-8 h-8 bg-white/30 rounded-full flex items-center justify-center text-xs font-bold">
                         AL
                       </div>
-                      <span className="text-sm text-orange-100 ml-2">Design Team</span>
+                      <span className="text-sm text-orange-100 ml-2">
+                        Design Team
+                      </span>
                     </div>
                     <div className="text-sm text-orange-100">
                       <Heart className="w-4 h-4 inline mr-1" />
@@ -320,8 +389,8 @@ export default function HomePage() {
             </span>
           </h2>
           <p className="text-xl text-stone-300 mb-12 max-w-2xl mx-auto leading-relaxed">
-            Join thousands of teams who've discovered that the right mood makes all the difference. Start your colorful
-            journey today.
+            Join thousands of teams who've discovered that the right mood makes
+            all the difference. Start your colorful journey today.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
@@ -340,7 +409,9 @@ export default function HomePage() {
             </Button>
           </div>
 
-          <p className="text-stone-400 text-sm mt-6">No credit card required • 14-day free trial • Cancel anytime</p>
+          <p className="text-stone-400 text-sm mt-6">
+            No credit card required • 14-day free trial • Cancel anytime
+          </p>
         </div>
       </section>
 
@@ -371,5 +442,5 @@ export default function HomePage() {
         </div>
       </footer>
     </div>
-  )
+  );
 }

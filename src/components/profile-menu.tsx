@@ -1,101 +1,136 @@
-"use client"
+"use client";
 
-import { useEffect, useState, type ComponentType } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { User, Users, LogOut, CreditCard, HelpCircle, Palette, X, LayoutDashboard } from "lucide-react"
-import { useAuth } from "@/hooks/useAuth"
-import { clearServerSession } from "@/lib/session"
-import { signOutUser } from "@/lib/auth"
-import { useRouter } from "next/navigation"
-import { cn } from "@/lib/utils"
-import { NotificationBell } from "@/components/notifications/bell-button"
-import { NotificationsDrawer } from "@/components/notifications/drawer"
-import { useNotifications, useUnreadNotifications } from "@/hooks/use-notifications"
+import { useEffect, useState, type ComponentType } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  User,
+  Users,
+  LogOut,
+  CreditCard,
+  HelpCircle,
+  Palette,
+  X,
+  LayoutDashboard,
+} from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { clearServerSession } from "@/lib/session";
+import { signOutUser } from "@/lib/auth";
+import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { NotificationBell } from "@/components/notifications/bell-button";
+import { NotificationsDrawer } from "@/components/notifications/drawer";
+import {
+  useNotifications,
+  useUnreadNotifications,
+} from "@/hooks/use-notifications";
 
 export function ProfileMenu() {
-  const [isOpen, setIsOpen] = useState(false)
-  const [isActive, setIsActive] = useState(false)
-  const [isNotifOpen, setIsNotifOpen] = useState(false)
-  const [hasUnread, setHasUnread] = useState(false)
-  const { user } = useAuth()
-  const router = useRouter()
+  const [isOpen, setIsOpen] = useState(false);
+  const [isActive, setIsActive] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
+  const { user } = useAuth();
+  const router = useRouter();
 
-  const name = user?.displayName || user?.email?.split("@")[0] || "Guest"
-  const email = user?.email || ""
-  const [tag, setTag] = useState<string | null>(null)
-  const profileHref = user?.uid ? `/user/${tag || user.uid}` : "/login"
+  const name = user?.displayName || user?.email?.split("@")[0] || "Guest";
+  const email = user?.email || "";
+  const [tag, setTag] = useState<string | null>(null);
+  const profileHref = user?.uid ? `/user/${tag || user.uid}` : "/login";
 
   // Fetch user profile to read tag
   useEffect(() => {
-    let ignore = false
+    let ignore = false;
     async function load() {
-      if (!user?.uid) { setTag(null); return }
+      if (!user?.uid) {
+        setTag(null);
+        return;
+      }
       try {
-        const res = await fetch('/api/users/me', { cache: 'no-store' })
-        const json = await res.json()
-        if (!ignore) setTag(json?.profile?.tag || null)
+        const res = await fetch("/api/users/me", { cache: "no-store" });
+        const json = await res.json();
+        if (!ignore) setTag(json?.profile?.tag || null);
       } catch {
-        if (!ignore) setTag(null)
+        if (!ignore) setTag(null);
       }
     }
-    load()
-    return () => { ignore = true }
-  }, [user?.uid])
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [user?.uid]);
 
   function openMenu() {
-    setIsOpen(true)
+    setIsOpen(true);
     // allow mount before activating transition
-    requestAnimationFrame(() => setIsActive(true))
+    requestAnimationFrame(() => setIsActive(true));
   }
 
   function closeMenu() {
-    setIsActive(false)
+    setIsActive(false);
     // wait for transition to finish before unmount
-    setTimeout(() => setIsOpen(false), 200)
+    setTimeout(() => setIsOpen(false), 200);
   }
 
   function toggleMenu() {
-    if (isOpen) closeMenu(); else openMenu();
+    if (isOpen) closeMenu();
+    else openMenu();
   }
 
-  function openNotif() { setIsNotifOpen(true) }
-  function closeNotif() { setIsNotifOpen(false) }
+  function openNotif() {
+    setIsNotifOpen(true);
+  }
+  function closeNotif() {
+    setIsNotifOpen(false);
+  }
 
   function toggleNotif() {
-    if (isNotifOpen) closeNotif(); else openNotif();
+    if (isNotifOpen) closeNotif();
+    else openNotif();
   }
 
   async function handleSignOut() {
     try {
-      await clearServerSession()
+      await clearServerSession();
     } catch {}
     try {
-      await signOutUser()
+      await signOutUser();
     } catch {}
-    closeMenu()
-    router.push("/login")
+    closeMenu();
+    router.push("/login");
   }
 
-  const menuItems: { label: string; icon: ComponentType<{ className?: string }>; href?: string }[] = [
+  const menuItems: {
+    label: string;
+    icon: ComponentType<{ className?: string }>;
+    href?: string;
+  }[] = [
     { label: "Moodboards", icon: LayoutDashboard, href: "/moodboards" },
     { label: "Profile", icon: User, href: profileHref },
     { label: "Teams", icon: Users, href: "/teams" },
     { label: "Billing & Plans", icon: CreditCard, href: "/billing" },
     { label: "Help & Support", icon: HelpCircle, href: "/help" },
-  ]
+  ];
 
   // Live unread indicator via hook
-  const unread = useUnreadNotifications(user?.uid)
-  const { items: notifs, loading: loadingNotifs } = useNotifications(user?.uid, 10, isNotifOpen)
-  useEffect(() => { setHasUnread(!!unread) }, [unread])
+  const unread = useUnreadNotifications(user?.uid);
+  const { items: notifs, loading: loadingNotifs } = useNotifications(
+    user?.uid,
+    10,
+    isNotifOpen
+  );
+  useEffect(() => {
+    setHasUnread(!!unread);
+  }, [unread]);
 
   return (
     <>
       {/* Floating action buttons (Notifications + Profile) */}
       <div className="fixed top-6 right-6 z-30 flex items-center gap-3">
-        {user && <NotificationBell hasUnread={hasUnread} onClick={toggleNotif} />}
+        {user && (
+          <NotificationBell hasUnread={hasUnread} onClick={toggleNotif} />
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -140,7 +175,9 @@ export function ProfileMenu() {
               "w-full sm:w-80",
               "bg-stone-900/95 backdrop-blur-md border-l border-stone-700/50 rounded-none",
               "transition-transform transition-opacity duration-200",
-              isActive ? "translate-x-0 opacity-100" : "translate-x-full opacity-0",
+              isActive
+                ? "translate-x-0 opacity-100"
+                : "translate-x-full opacity-0"
             )}
           >
             <div className="p-6">
@@ -149,7 +186,7 @@ export function ProfileMenu() {
                 href={profileHref}
                 onClick={() => {
                   // Navigate to the public profile when clicking header/avatar
-                  closeMenu()
+                  closeMenu();
                 }}
                 className={cn(
                   "flex items-center gap-3 mb-8 pb-6 border-b border-stone-700/50",
@@ -170,24 +207,30 @@ export function ProfileMenu() {
               </Link>
 
               {/* Menu Items */}
-              <div className="space-y-2">
-                {menuItems.map(({ label, icon: Icon, href }) => (
-                  <Button
-                    key={label}
-                    variant="ghost"
-                    className="w-full justify-start text-stone-300 hover:text-white hover:bg-stone-800/50 h-12 cursor-pointer"
-                    onClick={() => {
-                      if (href) {
-                        closeMenu()
-                        router.push(href)
-                      }
-                    }}
-                  >
-                    <Icon className="w-5 h-5 mr-3" />
-                    {label}
-                  </Button>
-                ))}
-              </div>
+              {user ? (
+                <div className="space-y-2">
+                  {menuItems.map(({ label, icon: Icon, href }) => (
+                    <Button
+                      key={label}
+                      variant="ghost"
+                      className="w-full justify-start text-stone-300 hover:text-white hover:bg-stone-800/50 h-12 cursor-pointer"
+                      onClick={() => {
+                        if (href) {
+                          closeMenu();
+                          router.push(href);
+                        }
+                      }}
+                    >
+                      <Icon className="w-5 h-5 mr-3" />
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-stone-400 text-sm italic mb-6">
+                  Please sign in to access your profile and settings.
+                </div>
+              )}
 
               {/* Divider */}
               <div className="my-6 h-px bg-gradient-to-r from-transparent via-stone-700/50 to-transparent" />
@@ -199,7 +242,7 @@ export function ProfileMenu() {
                   variant="ghost"
                   className={cn(
                     "w-full justify-start h-12",
-                    "text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer",
+                    "text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer"
                   )}
                 >
                   <LogOut className="w-5 h-5 mr-3" />
@@ -214,7 +257,7 @@ export function ProfileMenu() {
                   variant="ghost"
                   className={cn(
                     "w-full justify-start h-12",
-                    "text-cyan-300 hover:text-white hover:bg-stone-800/50 cursor-pointer",
+                    "text-cyan-300 hover:text-white hover:bg-stone-800/50 cursor-pointer"
                   )}
                 >
                   <User className="w-5 h-5 mr-3" />
@@ -229,9 +272,13 @@ export function ProfileMenu() {
                   <div className="w-6 h-6 bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500 rounded flex items-center justify-center">
                     <Palette className="w-3 h-3 text-white" />
                   </div>
-                  <span className="text-white font-semibold text-sm group-hover:underline">Task-ette</span>
+                  <span className="text-white font-semibold text-sm group-hover:underline">
+                    Task-ette
+                  </span>
                 </Link>
-                <p className="text-stone-400 text-xs">Making work colorful, one task at a time</p>
+                <p className="text-stone-400 text-xs">
+                  Making work colorful, one task at a time
+                </p>
               </div>
             </div>
           </Card>
@@ -245,15 +292,23 @@ export function ProfileMenu() {
           loading={loadingNotifs}
           onClose={closeNotif}
           onMarkAll={async () => {
-            try { await fetch('/api/users/me/notifications/mark-all-read', { method: 'POST' }) } catch {}
-            setHasUnread(false)
-            closeNotif()
+            try {
+              await fetch("/api/users/me/notifications/mark-all-read", {
+                method: "POST",
+              });
+            } catch {}
+            setHasUnread(false);
+            closeNotif();
           }}
           onMarkRead={async (id: string) => {
-            try { await fetch(`/api/users/me/notifications/${id}`, { method: 'PATCH' }) } catch {}
+            try {
+              await fetch(`/api/users/me/notifications/${id}`, {
+                method: "PATCH",
+              });
+            } catch {}
           }}
         />
       )}
     </>
-  )
+  );
 }
