@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { cn } from "@/lib/utils";
@@ -72,7 +72,8 @@ export function NavigationProgress() {
   }, [clearTimers, complete]);
 
   useEffect(() => {
-    const routerInstance = router as typeof router & Record<string, (...args: unknown[]) => unknown>;
+    const routerInstance = router as typeof router &
+      Record<string, (...args: unknown[]) => unknown>;
     const methods: Array<keyof typeof routerInstance> = [
       "push",
       "replace",
@@ -116,28 +117,33 @@ export function NavigationProgress() {
     complete();
   }, [pathname, search, complete]);
 
-  useEffect(() => () => {
-    clearTimers();
-    if (finishTimerRef.current !== null) {
-      window.clearTimeout(finishTimerRef.current);
-      finishTimerRef.current = null;
-    }
-  }, [clearTimers]);
+  useEffect(
+    () => () => {
+      clearTimers();
+      if (finishTimerRef.current !== null) {
+        window.clearTimeout(finishTimerRef.current);
+        finishTimerRef.current = null;
+      }
+    },
+    [clearTimers]
+  );
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-50 h-0.5">
-      <div
-        className={cn(
-          "h-full w-full origin-left bg-gradient-to-r from-sky-500 via-indigo-500 to-emerald-500",
-          "transition-opacity duration-150 ease-out",
-          "transform-gpu transition-transform"
-        )}
-        style={{
-          opacity: visible ? 1 : 0,
-          transform: `scaleX(${progress / 100})`,
-        }}
-      />
-    </div>
+    <Suspense>
+      <div className="pointer-events-none fixed inset-x-0 top-0 z-50 h-0.5">
+        <div
+          className={cn(
+            "h-full w-full origin-left bg-gradient-to-r from-sky-500 via-indigo-500 to-emerald-500",
+            "transition-opacity duration-150 ease-out",
+            "transform-gpu transition-transform"
+          )}
+          style={{
+            opacity: visible ? 1 : 0,
+            transform: `scaleX(${progress / 100})`,
+          }}
+        />
+      </div>
+    </Suspense>
   );
 }
 
