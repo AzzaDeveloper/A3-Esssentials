@@ -103,6 +103,7 @@ function toElementPosition(world: { x: number; y: number }) {
 
 const POSITION_BROADCAST_INTERVAL = 180;
 const POSITION_KEEP_ALIVE_MS = 3_000;
+const ELEMENT_INTERPOLATION_MS = 160;
 
 interface ElementPresencePayload {
   elementId?: string;
@@ -112,6 +113,30 @@ interface ElementPresencePayload {
   w?: number;
   h?: number;
   updatedAt?: number;
+}
+
+interface RemoteElementInterpolant {
+  worldX: number;
+  worldY: number;
+  targetX: number;
+  targetY: number;
+  w?: number;
+  h?: number;
+}
+
+function mapInterpolantsToOverrides(
+  source: Map<string, RemoteElementInterpolant>,
+): Record<string, { x: number; y: number; w?: number; h?: number }> {
+  const result: Record<string, { x: number; y: number; w?: number; h?: number }> = {};
+  source.forEach((entry, id) => {
+    result[id] = {
+      x: entry.worldX,
+      y: entry.worldY,
+      ...(entry.w !== undefined ? { w: entry.w } : {}),
+      ...(entry.h !== undefined ? { h: entry.h } : {}),
+    };
+  });
+  return result;
 }
 
 export function BoardCanvas({
@@ -146,9 +171,15 @@ export function BoardCanvas({
   const zIndexCounterRef = useRef(0);
   const [zIndexMap, setZIndexMap] = useState<Record<string, number>>({});
 
-  const [remoteElementOverrides, setRemoteElementOverrides] = useState<
+  const [remoteElementTargets, setRemoteElementTargets] = useState<
     Record<string, { x: number; y: number; w?: number; h?: number }>
   >({});
+  const [smoothedElementOverrides, setSmoothedElementOverrides] = useState<
+    Record<string, { x: number; y: number; w?: number; h?: number }>
+  >({});
+  const remoteElementInterpolantsRef = useRef<
+    Map<string, RemoteElementInterpolant>
+  >(new Map());
   const dragPresenceRef = useRef<{
     active: boolean;
     dirty: boolean;
@@ -757,7 +788,7 @@ export function BoardCanvas({
 
   const renderedElements = useMemo(() => {
     const mapped = elements.map((element) => {
-      const override = remoteElementOverrides[element.id];
+      const override = smoothedElementOverrides[element.id];
       if (!override) return element;
       const width =
         override.w === undefined
@@ -783,7 +814,7 @@ export function BoardCanvas({
     });
     mapped.sort((a, b) => (zIndexMap[a.id] ?? 0) - (zIndexMap[b.id] ?? 0));
     return mapped;
-  }, [elements, remoteElementOverrides, zIndexMap]);
+  }, [elements, smoothedElementOverrides, zIndexMap]);
 
   const editingElement = useMemo(
     () =>
@@ -864,7 +895,7 @@ export function BoardCanvas({
         ElementPresencePayload
       > | null;
       if (!value) {
-        setRemoteElementOverrides({});
+        setRemoteElementTargets({});
         return;
       }
 
@@ -892,11 +923,79 @@ export function BoardCanvas({
         next[payload.elementId] = entry;
       }
 
-      setRemoteElementOverrides(next);
+      setRemoteElementTargets(next);
     });
 
     return () => unsubscribe();
   }, [boardId, rtdb, viewerId]);
+
+  useEffect(() => {
+    const interpolants = remoteElementInterpolantsRef.current;
+    const seen = new Set<string>();
+    for (const [id, payload] of Object.entries(remoteElementTargets)) {
+      seen.add(id);
+      const existing = interpolants.get(id);
+      if (existing) {
+        existing.targetX = payload.x;
+        existing.targetY = payload.y;
+        if (payload.w !== undefined) existing.w = payload.w;
+        if (payload.h !== undefined) existing.h = payload.h;
+      } else {
+        interpolants.set(id, {
+          worldX: payload.x,
+          worldY: payload.y,
+          targetX: payload.x,
+          targetY: payload.y,
+          w: payload.w,
+          h: payload.h,
+        });
+      }
+    }
+
+    interpolants.forEach((_, key) => {
+      if (!seen.has(key)) {
+        interpolants.delete(key);
+      }
+    });
+
+    setSmoothedElementOverrides(mapInterpolantsToOverrides(interpolants));
+  }, [remoteElementTargets]);
+
+  useEffect(() => {
+    let raf = 0;
+    let previous = performance.now();
+
+    const step = (timestamp: number) => {
+      const delta = timestamp - previous;
+      previous = timestamp;
+      const interpolants = remoteElementInterpolantsRef.current;
+      let changed = false;
+
+      interpolants.forEach((entry) => {
+        const diffX = entry.targetX - entry.worldX;
+        const diffY = entry.targetY - entry.worldY;
+        if (Math.abs(diffX) > 0.5 || Math.abs(diffY) > 0.5) {
+          const factor = Math.min(1, delta / ELEMENT_INTERPOLATION_MS);
+          entry.worldX += diffX * factor;
+          entry.worldY += diffY * factor;
+          changed = true;
+        } else if (diffX !== 0 || diffY !== 0) {
+          entry.worldX = entry.targetX;
+          entry.worldY = entry.targetY;
+          changed = true;
+        }
+      });
+
+      if (changed) {
+        setSmoothedElementOverrides(mapInterpolantsToOverrides(interpolants));
+      }
+
+      raf = window.requestAnimationFrame(step);
+    };
+
+    raf = window.requestAnimationFrame(step);
+    return () => window.cancelAnimationFrame(raf);
+  }, []);
 
   useEffect(() => {
     if (!isTeamBoard && isRosterOpen) {
