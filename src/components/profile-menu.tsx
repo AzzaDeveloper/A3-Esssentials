@@ -4,7 +4,7 @@ import { useEffect, useState, type ComponentType } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { User, Users, Settings, LogOut, CreditCard, HelpCircle, Palette, X, LayoutDashboard } from "lucide-react"
+import { User, Users, LogOut, CreditCard, HelpCircle, Palette, X, LayoutDashboard } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import { clearServerSession } from "@/lib/session"
 import { signOutUser } from "@/lib/auth"
@@ -83,7 +83,6 @@ export function ProfileMenu() {
     { label: "Profile", icon: User, href: profileHref },
     { label: "Teams", icon: Users, href: "/teams" },
     { label: "Billing & Plans", icon: CreditCard, href: "/billing" },
-    { label: "Account Settings", icon: Settings, href: "/settings" },
     { label: "Help & Support", icon: HelpCircle, href: "/help" },
   ]
 

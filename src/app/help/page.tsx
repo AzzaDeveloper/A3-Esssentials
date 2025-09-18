@@ -17,7 +17,7 @@ export default function HelpSupportPage() {
       id: "account",
       question: "How do I create an account?",
       answer:
-        "To create an account, click the 'Sign Up' button in the top right corner of the homepage. Fill in your email, create a password, and verify your email address through the confirmation link we'll send you.",
+        "To create an account, click the 'Sign Up' button in the top right corner of the homepage. Fill in your email, create a password or log in with google.",
     },
     {
       id: "billing",
@@ -29,7 +29,7 @@ export default function HelpSupportPage() {
       id: "tasks",
       question: "How do I organize my tasks by color?",
       answer:
-        "Task-ette uses an intelligent color-coding system. Tasks are automatically categorized by urgency and type: Red/Orange for urgent tasks, Blue for analytical work, Purple for creative projects, Green for collaborative tasks, and Yellow for routine maintenance.",
+        "Task-ette uses an intelligent color-coding system. Tasks are automatically categorized by urgency and energy levels. Our AI automatically reads and interpet the note's context and mood, then it will create a note accordingly with the appropriate tags.",
     },
     {
       id: "sync",
@@ -41,25 +41,25 @@ export default function HelpSupportPage() {
       id: "export",
       question: "Can I export my tasks?",
       answer:
-        "You can export your tasks in multiple formats including CSV, PDF, and JSON. Go to Settings > Data Export to download your task history and current projects.",
+        "No.",
     },
     {
       id: "password",
       question: "I forgot my password. How do I reset it?",
       answer:
-        "Click 'Forgot Password' on the login page, enter your email address, and we'll send you a secure reset link. The link expires after 24 hours for security.",
+        "No, use google to login instead.",
     },
     {
       id: "delete",
       question: "How do I delete my account?",
       answer:
-        "To delete your account, go to Settings > Account > Delete Account. This action is permanent and will remove all your data. We recommend exporting your tasks first.",
+        "You can't.",
     },
     {
       id: "mobile",
       question: "Is there a mobile app?",
       answer:
-        "Task-ette works perfectly in your mobile browser with a responsive design. We're currently developing native iOS and Android apps - join our newsletter for updates!",
+        "Task-ette works perfectly in your mobile browser with a responsive design. We're currently NOT developing native iOS and Android apps - join our newsletter for NOTHING!",
     },
   ]
 
