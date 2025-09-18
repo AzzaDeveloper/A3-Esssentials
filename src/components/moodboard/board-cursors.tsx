@@ -141,27 +141,33 @@ export function BoardCursors({
       pointerStateRef.current.dirty = true;
     };
 
-    const handlePointerLeave = () => {
+    const handlePointerExit = () => {
       pointerStateRef.current.active = false;
       pointerStateRef.current.dirty = false;
       pointerStateRef.current.lastSentAt = 0;
       remove(presenceRef).catch(() => {});
     };
 
+    const handlePointerUp = () => {
+      pointerStateRef.current.active = true;
+      pointerStateRef.current.dirty = true;
+      pointerStateRef.current.lastSentAt = 0; // force the next interval to keep us alive
+    };
+
     element.addEventListener("pointerdown", handlePointerMove);
     element.addEventListener("pointermove", handlePointerMove);
     element.addEventListener("pointerenter", handlePointerMove);
-    element.addEventListener("pointerleave", handlePointerLeave);
-    element.addEventListener("pointercancel", handlePointerLeave);
-    element.addEventListener("pointerup", handlePointerLeave);
+    element.addEventListener("pointerleave", handlePointerExit);
+    element.addEventListener("pointercancel", handlePointerExit);
+    element.addEventListener("pointerup", handlePointerUp);
 
     return () => {
       element.removeEventListener("pointerdown", handlePointerMove);
       element.removeEventListener("pointermove", handlePointerMove);
       element.removeEventListener("pointerenter", handlePointerMove);
-      element.removeEventListener("pointerleave", handlePointerLeave);
-      element.removeEventListener("pointercancel", handlePointerLeave);
-      element.removeEventListener("pointerup", handlePointerLeave);
+      element.removeEventListener("pointerleave", handlePointerExit);
+      element.removeEventListener("pointercancel", handlePointerExit);
+      element.removeEventListener("pointerup", handlePointerUp);
     };
   }, [containerRef, presenceRef]);
 
