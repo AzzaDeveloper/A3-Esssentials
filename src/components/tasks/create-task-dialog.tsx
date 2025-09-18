@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+  type FormEvent,
+} from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +28,13 @@ import { generateTaskDraft } from "@/app/(actions)/tasks";
 import { DEFAULT_MOOD, MOOD_CONFIG, MOOD_ORDER } from "@/lib/moods";
 import type { TaskDraft, TaskMood, TeamMemberContext } from "@/lib/types";
 import { AlertCircle, Loader2, Plus, Sparkles, UserPlus } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type CreateTaskMode = "natural" | "manual";
 
@@ -35,7 +47,6 @@ export interface CreateTaskDialogProps {
 }
 
 export type ManualTaskFormState = TaskDraft;
-
 
 const initialManualState: ManualTaskFormState = {
   title: "",
@@ -62,10 +73,12 @@ export function CreateTaskDialog({
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<CreateTaskMode>("manual");
   const [naturalDraft, setNaturalDraft] = useState("");
-  const [manualState, setManualState] = useState<ManualTaskFormState>(initialManualState);
+  const [manualState, setManualState] =
+    useState<ManualTaskFormState>(initialManualState);
   const [isGenerating, startGenerating] = useTransition();
   const [generationError, setGenerationError] = useState<string | null>(null);
-  const [teamMemberSelectValue, setTeamMemberSelectValue] = useState("placeholder");
+  const [teamMemberSelectValue, setTeamMemberSelectValue] =
+    useState("placeholder");
 
   const teamMemberPayload = useMemo(
     () =>
@@ -76,19 +89,29 @@ export function CreateTaskDialog({
         email: member.email ?? undefined,
         tag: member.tag ?? undefined,
       })),
-    [teamMembers],
+    [teamMembers]
   );
 
-  const manualIsSubmittable = useMemo(() => manualState.title.trim().length > 0, [manualState.title]);
-  const naturalIsSubmittable = useMemo(() => naturalDraft.trim().length >= 8, [naturalDraft]);
+  const manualIsSubmittable = useMemo(
+    () => manualState.title.trim().length > 0,
+    [manualState.title]
+  );
+  const naturalIsSubmittable = useMemo(
+    () => naturalDraft.trim().length >= 8,
+    [naturalDraft]
+  );
   const showTeamMembers = !isPersonalBoard;
   const showAssigneeField = !isPersonalBoard;
   const hasTeamMembers = teamMemberPayload.length > 0;
-  const assigneeSelectValue = manualState.assigneeId.trim().length ? manualState.assigneeId : "unassigned";
+  const assigneeSelectValue = manualState.assigneeId.trim().length
+    ? manualState.assigneeId
+    : "unassigned";
 
   useEffect(() => {
     if (isPersonalBoard) {
-      setManualState((prev) => (prev.assigneeId ? { ...prev, assigneeId: "" } : prev));
+      setManualState((prev) =>
+        prev.assigneeId ? { ...prev, assigneeId: "" } : prev
+      );
     }
   }, [isPersonalBoard]);
 
@@ -112,7 +135,9 @@ export function CreateTaskDialog({
       const active = prev.moods.includes(mood);
       return {
         ...prev,
-        moods: active ? prev.moods.filter((value) => value !== mood) : [...prev.moods, mood],
+        moods: active
+          ? prev.moods.filter((value) => value !== mood)
+          : [...prev.moods, mood],
       };
     });
   }
@@ -127,9 +152,12 @@ export function CreateTaskDialog({
   const availableTeamMembers = useMemo(
     () =>
       teamMemberPayload.filter(
-        (member) => !manualState.teamMembers.some((entry) => entry.id && entry.id === member.id),
+        (member) =>
+          !manualState.teamMembers.some(
+            (entry) => entry.id && entry.id === member.id
+          )
       ),
-    [manualState.teamMembers, teamMemberPayload],
+    [manualState.teamMembers, teamMemberPayload]
   );
 
   function initialsFromName(name: string) {
@@ -193,7 +221,11 @@ export function CreateTaskDialog({
           }
         } catch (error) {
           console.error("create-task-dialog:natural", error);
-          setGenerationError(error instanceof Error ? error.message : "Failed to generate task draft.");
+          setGenerationError(
+            error instanceof Error
+              ? error.message
+              : "Failed to generate task draft."
+          );
         }
       })();
     });
@@ -218,15 +250,22 @@ export function CreateTaskDialog({
           {triggerLabel}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl overflow-hidden border border-slate-200 bg-gradient-to-b from-white via-white to-slate-50 shadow-2xl">
+      <DialogContent className="max-h-[85vh] overflow-y-auto border border-slate-200 bg-gradient-to-b from-white via-white to-slate-50 shadow-2xl sm:max-w-2xl">
         <DialogHeader className="space-y-2">
-          <DialogTitle className="text-2xl font-semibold text-slate-900">Create a task</DialogTitle>
+          <DialogTitle className="text-2xl font-semibold text-slate-900">
+            Create a task
+          </DialogTitle>
           <DialogDescription className="text-sm text-slate-500">
-            Choose the quickest way to capture work. Manual details are ready now; AI briefs are on the way.
+            Choose the quickest way to capture work. Manual details are ready
+            now; AI briefs are on the way.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={mode} onValueChange={(value) => setMode(value as CreateTaskMode)} className="space-y-6">
+        <Tabs
+          value={mode}
+          onValueChange={(value) => setMode(value as CreateTaskMode)}
+          className="space-y-6"
+        >
           <TabsList className="w-full grid-cols-2 rounded-md border border-slate-200 bg-slate-100/80 p-1 text-slate-600">
             <TabsTrigger
               value="natural"
@@ -247,51 +286,60 @@ export function CreateTaskDialog({
             <Card className="relative overflow-hidden border border-slate-200 bg-white/95 shadow-lg">
               <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-violet-300 via-indigo-300 to-blue-300" />
               <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold text-slate-900">Natural language</CardTitle>
+                <CardTitle className="text-base font-semibold text-slate-900">
+                  Natural language
+                </CardTitle>
                 <p className="text-sm text-slate-500">
-                  Describe the task in plain language. We'll translate this into structured work automatically.
+                  Describe the task in plain language. We'll translate this into
+                  structured work automatically.
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
-                  <Textarea
-                    value={naturalDraft}
-                    onChange={(event) => setNaturalDraft(event.target.value)}
-                    placeholder="e.g., Capture the beta feedback and assign follow-ups by Thursday."
-                    className="min-h-[160px] border border-slate-200 text-slate-900 shadow-inner"
-                  />
-                  <div className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
-                    <Sparkles className="mt-0.5 h-4 w-4 text-violet-500" />
-                    <div className="space-y-1">
-                      <div className="font-medium text-slate-800">Describe what needs to happen</div>
-                      <p>Mention deliverables, timing, collaborators, and any mood cues for the assignee.</p>
+                <Textarea
+                  value={naturalDraft}
+                  onChange={(event) => setNaturalDraft(event.target.value)}
+                  placeholder="e.g., Capture the beta feedback and assign follow-ups by Thursday."
+                  className="min-h-[160px] border border-slate-200 text-slate-900 shadow-inner"
+                />
+                <div className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50/90 p-3 text-sm text-slate-600">
+                  <Sparkles className="mt-0.5 h-4 w-4 text-violet-500" />
+                  <div className="space-y-1">
+                    <div className="font-medium text-slate-800">
+                      Describe what needs to happen
                     </div>
+                    <p>
+                      Mention deliverables, timing, collaborators, and any mood
+                      cues for the assignee.
+                    </p>
                   </div>
-                  {generationError ? (
-                    <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50/90 p-3 text-sm text-rose-600">
-                      <AlertCircle className="mt-0.5 h-4 w-4" />
-                      <div>{generationError}</div>
-                    </div>
-                  ) : null}
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1 text-left">
-                      <AlertCircle className="h-3.5 w-3.5 text-violet-500" />
-                      We will structure the task for you. Include due dates or teammates when you know them.
-                    </span>
-                    <Button
-                      type="button"
-                      onClick={handleNaturalGenerate}
-                      disabled={!naturalIsSubmittable || isGenerating}
-                      className="whitespace-nowrap"
-                    >
-                      {isGenerating ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Sparkles className="mr-2 h-4 w-4" />
-                      )}
-                      {isGenerating ? "Generating..." : "Generate task"}
-                    </Button>
+                </div>
+                {generationError ? (
+                  <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50/90 p-3 text-sm text-rose-600">
+                    <AlertCircle className="mt-0.5 h-4 w-4" />
+                    <div>{generationError}</div>
                   </div>
-                </CardContent>
+                ) : null}
+                <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+                  <span className="inline-flex items-center gap-1 text-left">
+                    <AlertCircle className="h-3.5 w-3.5 text-violet-500" />
+                    We will structure the task for you. Include due dates or
+                    teammates when you know them.
+                  </span>
+                  <Button
+                    type="button"
+                    onClick={handleNaturalGenerate}
+                    disabled={!naturalIsSubmittable || isGenerating}
+                    className="whitespace-nowrap"
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    {isGenerating ? "Generating..." : "Generate task"}
+                  </Button>
+                </div>
+              </CardContent>
             </Card>
           </TabsContent>
 
@@ -299,13 +347,21 @@ export function CreateTaskDialog({
             <Card className="relative overflow-hidden border border-slate-200 bg-white/95 shadow-lg">
               <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-slate-200 via-slate-300 to-slate-200" />
               <CardHeader className="pb-2">
-                <CardTitle className="text-base font-semibold text-slate-900">Manual details</CardTitle>
-                <p className="text-sm text-slate-500">Provide the essentials to capture a task. You can enrich it later.</p>
+                <CardTitle className="text-base font-semibold text-slate-900">
+                  Manual details
+                </CardTitle>
+                <p className="text-sm text-slate-500">
+                  Provide the essentials to capture a task. You can enrich it
+                  later.
+                </p>
               </CardHeader>
               <CardContent>
                 <form className="space-y-6" onSubmit={handleManualSubmit}>
                   <div className="grid gap-2">
-                    <Label htmlFor="task-title" className="text-sm font-medium text-slate-700">
+                    <Label
+                      htmlFor="task-title"
+                      className="text-sm font-medium text-slate-700"
+                    >
                       Title
                     </Label>
                     <Input
@@ -323,7 +379,10 @@ export function CreateTaskDialog({
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="task-description" className="text-sm font-medium text-slate-700">
+                    <Label
+                      htmlFor="task-description"
+                      className="text-sm font-medium text-slate-700"
+                    >
                       Description
                     </Label>
                     <Textarea
@@ -341,7 +400,10 @@ export function CreateTaskDialog({
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="grid gap-2">
-                      <Label htmlFor="task-due-date" className="text-sm font-medium text-slate-700">
+                      <Label
+                        htmlFor="task-due-date"
+                        className="text-sm font-medium text-slate-700"
+                      >
                         Due date
                       </Label>
                       <Input
@@ -359,7 +421,9 @@ export function CreateTaskDialog({
                     </div>
                     {showAssigneeField ? (
                       <div className="grid gap-2">
-                        <Label className="text-sm font-medium text-slate-700">Assignee</Label>
+                        <Label className="text-sm font-medium text-slate-700">
+                          Assignee
+                        </Label>
                         <Select
                           value={assigneeSelectValue}
                           onValueChange={(value) =>
@@ -373,11 +437,15 @@ export function CreateTaskDialog({
                             <SelectValue placeholder="Choose a teammate" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="unassigned">Unassigned</SelectItem>
+                            <SelectItem value="unassigned">
+                              Unassigned
+                            </SelectItem>
                             {teamMemberPayload.map((member) => (
                               <SelectItem key={member.id} value={member.id}>
                                 {member.name}
-                                {member.roles.length ? ` — ${member.roles.join(", ")}` : ""}
+                                {member.roles.length
+                                  ? ` — ${member.roles.join(", ")}`
+                                  : ""}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -391,7 +459,9 @@ export function CreateTaskDialog({
                     ) : null}
                   </div>
                   <div className="space-y-3">
-                    <Label className="text-sm font-medium text-slate-700">Mood signals</Label>
+                    <Label className="text-sm font-medium text-slate-700">
+                      Mood signals
+                    </Label>
                     <div className="flex flex-wrap gap-2">
                       {MOOD_ORDER.map((mood) => {
                         const active = manualState.moods.includes(mood);
@@ -406,8 +476,14 @@ export function CreateTaskDialog({
                               "focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
                               config.focusRing,
                               active
-                                ? cn("bg-gradient-to-r text-white shadow-md border-transparent", config.gradient)
-                                : cn(config.soft, "focus-visible:ring-offset-white"),
+                                ? cn(
+                                    "bg-gradient-to-r text-white shadow-md border-transparent",
+                                    config.gradient
+                                  )
+                                : cn(
+                                    config.soft,
+                                    "focus-visible:ring-offset-white"
+                                  )
                             )}
                           >
                             {config.label}
@@ -419,24 +495,42 @@ export function CreateTaskDialog({
                   {showTeamMembers ? (
                     <div className="space-y-3">
                       <div className="flex items-center gap-2">
-                        <Label className="text-sm font-medium text-slate-700">Team members</Label>
-                        <Badge variant="outline" className="flex items-center gap-1 border-violet-200 text-violet-600">
+                        <Label className="text-sm font-medium text-slate-700">
+                          Team members
+                        </Label>
+                        <Badge
+                          variant="outline"
+                          className="flex items-center gap-1 border-violet-200 text-violet-600"
+                        >
                           <UserPlus className="h-3.5 w-3.5" />
                           optional
                         </Badge>
                       </div>
-                      <Select value={teamMemberSelectValue} onValueChange={handleTeamMemberSelect}>
+                      <Select
+                        value={teamMemberSelectValue}
+                        onValueChange={handleTeamMemberSelect}
+                      >
                         <SelectTrigger className="border-slate-200">
-                          <SelectValue placeholder={availableTeamMembers.length ? "Add teammate" : "No teammates available"} />
+                          <SelectValue
+                            placeholder={
+                              availableTeamMembers.length
+                                ? "Add teammate"
+                                : "No teammates available"
+                            }
+                          />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="placeholder" disabled>
-                            {availableTeamMembers.length ? "Choose a teammate" : "No teammates available"}
+                            {availableTeamMembers.length
+                              ? "Choose a teammate"
+                              : "No teammates available"}
                           </SelectItem>
                           {availableTeamMembers.map((member) => (
                             <SelectItem key={member.id} value={member.id}>
                               {member.name}
-                              {member.roles.length ? ` — ${member.roles.join(", ")}` : ""}
+                              {member.roles.length
+                                ? ` — ${member.roles.join(", ")}`
+                                : ""}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -451,12 +545,16 @@ export function CreateTaskDialog({
                           >
                             <span>{member.name}</span>
                             {member.initials ? (
-                              <span className="text-[10px] uppercase tracking-wide text-slate-500">{member.initials}</span>
+                              <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                                {member.initials}
+                              </span>
                             ) : null}
                           </Badge>
                         ))}
                         {!manualState.teamMembers.length && (
-                          <span className="text-xs text-slate-400">No collaborators yet</span>
+                          <span className="text-xs text-slate-400">
+                            No collaborators yet
+                          </span>
                         )}
                       </div>
                     </div>
