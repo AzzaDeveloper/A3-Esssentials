@@ -1,4 +1,4 @@
-## Task Buddy
+## Task-ette
 
 Team task management and note‑taking with a live moodboard. The app focuses on natural task capture and mood‑aware assignment to keep teams coordinated and balanced.
 
@@ -68,7 +68,7 @@ NEXT_PUBLIC_FB_APP_ID=
 
 ## Suggested FS
 
-    task-buddy/
+    task-ette/
     ├── README.md
     ├── package.json
     ├── next.config.mjs
