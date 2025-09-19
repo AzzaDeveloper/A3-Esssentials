@@ -31,6 +31,17 @@ function loadServiceAccountFromEnv(): ServiceAccountLike | null {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  //
+  if (!projectId) {
+    console.warn("[firebase-admin] Missing FIREBASE_PROJECT_ID env variable.");
+  }
+  if (!clientEmail) {
+    console.warn("[firebase-admin] Missing FIREBASE_CLIENT_EMAIL env variable.");
+  }
+  if (!privateKey) {
+    console.warn("[firebase-admin] Missing FIREBASE_PRIVATE_KEY env variable. Note that this is different from the FIREBASE_API_KEY_ID.");
+  }
+  //
   if (!projectId || !clientEmail || !privateKey) return null;
   privateKey = privateKey.replace(/\\n/g, "\n");
   return { project_id: projectId, client_email: clientEmail, private_key: privateKey };
